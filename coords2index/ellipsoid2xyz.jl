@@ -1,6 +1,6 @@
 """
     ellipsoid2xyz(lat::Array{Number,N}, lon::Array{Number,N},
-                  height::Array{Number,N}, semi_major_axis=6378137.,
+                  height::Array{Number,N}; semi_major_axis=6378137.,
                   flattening=1/298.257223563)
 
 Convert ellipsoid coordinates to cartisian coordinates, based on ellipsoidal
@@ -28,7 +28,7 @@ julia> z
  -6.771067811865474
 ```
 """
-function ellipsoid2xyz(lat, lon, height, semi_major_axis=6378137.,
+function ellipsoid2xyz(lat, lon, height; semi_major_axis=6378137.,
                        flattening=1/298.257223563)
     #=
     TO-DO
