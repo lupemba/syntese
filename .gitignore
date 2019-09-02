@@ -1,3 +1,4 @@
-**/data_path.txt*
-**/.DS_Store*
-**/POD_path.txt*
+data_path.txt.*
+.DS_Store
+POD_path.txt.*
+.ipynb_checkpoints
