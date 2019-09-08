@@ -59,6 +59,22 @@ function polyval_sv(poly_list,t)
     return y_fit
 end
 
+
+"""
+    function polyval_sv(poly_list,t,y_mean,y_std)
+
+evaluate normalized polynomials for time, t
+
+# Arguments
+- `poly_list`: List of normalized fitted polynomials for [X,Y,Z,VX,VY,VZ]
+- `t`: Number of seconds after t_0
+- `y_std`: standard deviation of the data
+- `y_mean`: mean of the data
+
+# Returns
+- `y_fit`: Array of Array with each polynomial evaluate for all  t_0 + Seconds(t).
+
+"""
 function polyval_sv(poly_list,t,y_mean,y_std)
     y_norm_fit = polyval_sv(poly_list,t)
 
@@ -67,23 +83,9 @@ function polyval_sv(poly_list,t,y_mean,y_std)
     return y_fit
 end
 
-"""
-    function polyval_sv(poly_list,t::Array{DateTime,1},y_mean,y_std,t0::DateTime,step=Second)
 
-evaluate normalized polynomials for time, t
-
-# Arguments
-- `poly_list`: List of normalized fitted polynomials for [X,Y,Z,VX,VY,VZ]
-- `y_mean`: mean of the data
-- `t::Array{DateTime,1}: times to evaluate the polynomials
-- `y_std`: standard deviation of the data
-- `t0`: zero time point for polynomial fit
-
-# Returns
-- `y_fit`: Array of Array with each polynomial evaluate for all the times.
-
-"""
 function polyval_sv(poly_list,t::Array{DateTime,1},y_mean,y_std,t0::DateTime,step=Second)
+    println("WARNING: please do not use this version with time")
     # Convert t to "step" from first time, eg. seconds from t0
     dt = t.-t0
     dt = [convert(step,elem).value for elem in dt]
