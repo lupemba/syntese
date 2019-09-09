@@ -40,11 +40,11 @@ Convert t to "step" from first time, eg. seconds from t[0] and calls
 polyfit_sv(y_list, t, poly_degree, do_scale)
 
 """
-function polyfit_sv(y_list, t::Array{DateTime,1}; step=Second, poly_degree=4, do_scale=1)
+function polyfit_sv(y_list, t::Array{DateTime,1}; poly_degree=4, do_scale=1)
 
     # Convert t to "step" from first time, eg. seconds from t[0]
     dt = t.-t[1]
-    dt = [convert(step,elem).value for elem in dt]
+    dt = [convert(Millisecond,elem).value/1000 for elem in dt]
 
     # call standard function
     return polyfit_sv(y_list, dt, poly_degree=poly_degree, do_scale=do_scale)
