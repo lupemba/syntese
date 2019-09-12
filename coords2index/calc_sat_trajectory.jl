@@ -11,7 +11,8 @@ Fit polynomials to each array in y_list using t as the argument
 # Arguments
 - `y_list`: Array of Arrays with dependent variables
 - `t`: Array of independent variable
-# returns
+
+# Returns
 - `poly_list`: Array of fitted polynomials
 - `y_mean`: Array of mean (only if, do_scale=1)
 - `y_std`: Array of standard deviation (only if, do_scale=1)
@@ -96,9 +97,11 @@ end
 
 
 """
-    calc_sat_trajectory(osv,t_sv, t_start, t_stop; poly_degree=4, max_time_margin=Second(240))
+    calc_sat_trajectory(osv,t_sv, t_start, t_stop; poly_degree=4,
+                        max_time_margin=Second(240))
 
-Fit normalized polynomials to orbit state vectors for the time period of t_start to t_stop.
+Fit normalized polynomials to orbit state vectors (osv) for the time period of
+t_start to t_stop.
 
 # Arguments
 - `osv`: Array with [X,Y,Z,VX,VY,VZ] data
