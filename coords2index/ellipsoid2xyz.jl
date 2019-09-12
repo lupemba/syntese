@@ -35,7 +35,7 @@ function ellipsoid2xyz(lat, lon, height; semi_major_axis=6378137.,
     specify arugment types for lat, lon, height.
     =#
     e2 = flattening * (2 - flattening)
-    v = semi_major_axis./sqrt.(1 .-e2*sin.(lat).*sin.(lat))
+    v = semi_major_axis./sqrt.(1 .- e2*sin.(lat).*sin.(lat))
     x=(v+height).*cos.(lat).*cos.(lon)
     y=(v+height).*cos.(lat).*sin.(lon)
     z=(v.*(1-e2)+height).*sin.(lat)
