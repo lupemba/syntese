@@ -1,5 +1,3 @@
-using Dates
-
 """
     zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
                         osv_poly, osv_mean, osv_std, t0)
@@ -9,8 +7,8 @@ ground.
 
 # Arguments
 - `point_xyz`: 3-element Array{Float64,1} target point
-- `azimuth_start_time`: DateTime, the start time of the subswath
-- `azimuth_stop_time`: DateTime, the end time of the subswath
+- `azimuth_start_time`: Float64, the start time of the subswath in seconds
+- `azimuth_stop_time`: Float64, the end time of the subswath in seconds
 - `osv_poly`: 6-element Array{Polynomials.Poly{Float64},1} see
 calc_sat_trajectory() documentation
 - `osv_mean`: 6-element Array{Float64,1} see calc_sat_trajectory() documentation
@@ -18,16 +16,14 @@ calc_sat_trajectory() documentation
 
 # Examples:
 ```jldoctest
-julia> using Dates
 julia> include("load_pod.jl"); include("calc_sat_trajectory.jl");
 julia> f = open("POD_path.txt"); path = readlines(f);
 julia> osv,t_sv = load_pod(path[1]);
 julia> azimuth_start_time = DateTime(2017, 3, 15, 5, 40);
 julia> azimuth_stop_time = DateTime(2017, 3, 15, 5, 42);
-julia> osv_poly, osv_mean, osv_std, t0 = calc_sat_trajectory(osv,t_sv, azimuth_start_time, azimuth_stop_time);
+julia> osv_poly, osv_mean, osv_std = calc_sat_trajectory(osv, t_sv, azimuth_start_time, azimuth_stop_time);
 julia> point_xyz = [4.558689828520125e6, 1.3632875482646455e6, 5.716729814351776e6];
-julia> rrange, ttime = zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
-                                           osv_poly, osv_mean, osv_std, t0)
+julia> rrange, ttime = zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time, osv_poly, osv_mean, osv_std)
 2-element Array{Float64,1}:
 400999.9999999987
 310.3399994522333
@@ -40,7 +36,7 @@ line_of_sight vector.
 wrt to target
 """
 function zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
-                             osv_poly, osv_mean, osv_std, t0)
+                             osv_poly, osv_mean, osv_std)
     #=
     TO-DO
     Change while loop to more advanced optimization
@@ -50,13 +46,8 @@ function zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
     an interval larger than the data extend for sensitivity
     at the edges =#
     data_duration = azimuth_stop_time - azimuth_start_time
-    search_interval_start = (azimuth_start_time - data_duration) - t0
-    search_interval_end = (azimuth_stop_time + data_duration) - t0
-
-    # Convert to time
-    data_duration = Millisecond(data_duration).value/1000
-    search_interval_start = Millisecond(search_interval_start).value/1000
-    search_interval_end = Millisecond(search_interval_end).value/1000
+    search_interval_start = (azimuth_start_time - data_duration)
+    search_interval_end = (azimuth_stop_time + data_duration)
 
     # Initial bisection parameters, start iteration with entire data interval
     search_interval_duration = search_interval_end - search_interval_start
@@ -74,7 +65,7 @@ function zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
         osv = polyval_sv(osv_poly, trial_time, osv_mean, osv_std)
 
         trial_sat_position = osv[1:3]
-        line_of_sight = point_xyz - trial_sat_position
+        line_of_sight = point_xyz .- trial_sat_position
 
         # Compute the squint angle
         trial_sat_velocity = osv[4:6]

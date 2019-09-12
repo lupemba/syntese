@@ -34,22 +34,6 @@ function polyfit_sv(y_list, t; poly_degree=4, do_scale=1)
     end
 end
 
-"""
-    polyfit_sv(y_list, t::Array{DateTime,1}; step=Second, poly_degree=4, do_scale=1)
-
-Convert t to "step" from first time, eg. seconds from t[0] and calls
-polyfit_sv(y_list, t, poly_degree, do_scale)
-
-"""
-function polyfit_sv(y_list, t::Array{DateTime,1}; poly_degree=4, do_scale=1)
-
-    # Convert t to "step" from first time, eg. seconds from t[0]
-    dt = t.-t[1]
-    dt = [convert(Millisecond,elem).value/1000 for elem in dt]
-
-    # call standard function
-    return polyfit_sv(y_list, dt, poly_degree=poly_degree, do_scale=do_scale)
-end
 
 
 
@@ -85,56 +69,47 @@ function polyval_sv(poly_list,t,y_mean,y_std)
 end
 
 
-function polyval_sv(poly_list,t::Array{DateTime,1},y_mean,y_std,t0::DateTime,step=Second)
-    println("WARNING: please do not use this version with time")
-    # Convert t to "step" from first time, eg. seconds from t0
-    dt = t.-t0
-    dt = [convert(step,elem).value for elem in dt]
-    # call standard function
-    return polyval_sv(poly_list,dt,y_mean,y_std)
-end
-
-
 
 """
     calc_sat_trajectory(osv,t_sv, t_start, t_stop; poly_degree=4,
-                        max_time_margin=Second(240))
+                        max_time_margin=240)
 
 Fit normalized polynomials to orbit state vectors (osv) for the time period of
 t_start to t_stop.
 
 # Arguments
 - `osv`: Array with [X,Y,Z,VX,VY,VZ] data
-- `t_sv::Array{DateTime,N}`: DateTimes associated with osv
-- `t_start::Datetime`: start time
-- `t_stop::Datetime`: stop time
+- `t_sv::Float`: time in seconds
+- `t_start::Float`: start time
+- `t_stop::Float`: stop time
 
 # Returns
 - `osv_poly`: List of normalized fitted polynomials for [X,Y,Z,VX,VY,VZ]
 - `osv_mean`: mean of osv
 - `osv_std`: standard deviation of osv
-- `t0`: zero time point for polynomial fit
 
 """
-function calc_sat_trajectory(osv,t_sv, t_start, t_stop; poly_degree=4, max_time_margin=Second(240))
+function calc_sat_trajectory(osv,t_sv, t_start, t_stop; poly_degree=4, max_time_margin=240.)
     dt = t_stop - t_start;
     t_mid = t_start + dt / 2
     t_step = t_sv[2]-t_sv[1]
-    max_time_margin = max(convert(typeof(t_step),max_time_margin), (poly_degree + 2) / 2 * t_step)
+    max_time_margin = max(max_time_margin, (poly_degree + 2) / 2 * t_step)
 
 
     nearby_state_vector_idx = abs.(t_sv .- t_mid) .<= dt/2 + max_time_margin
+    
+    # Check if enough point are selected
     if sum(nearby_state_vector_idx) < poly_degree + 1
         println("Insufficient number of state vectors exiting.")
         return
     end
-
+    
+    # slice data to close times
     nearby_state_vector_t_sv = t_sv[nearby_state_vector_idx];
     nearby_state_vector_osv = [elem[nearby_state_vector_idx] for elem in osv];
-    t0 = nearby_state_vector_t_sv[1]
 
     osv_poly, osv_mean, osv_std =polyfit_sv(nearby_state_vector_osv,nearby_state_vector_t_sv,poly_degree=poly_degree)
 
-    return osv_poly, osv_mean, osv_std, t0
+    return osv_poly, osv_mean, osv_std
 
 end
