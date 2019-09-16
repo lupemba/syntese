@@ -4,7 +4,7 @@
                   flattening=1/298.257223563)
 
 Convert ellipsoid coordinates to cartisian coordinates, based on ellipsoidal
-latitudes (rad), longitudes (rad) and heights (m).
+latitudes (rad), longitudes (rad) and heights (m), deafult values are wrt to GRS80.
 
 # Examples:
 ```jldoctest
