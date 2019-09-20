@@ -4,6 +4,19 @@ import Dates
 
 include("convert_time.jl")
 
+"""
+    load_pod(path,t_0)
+
+    Load preciese orbit files
+
+    # Arguments
+    - `path::String`: path to precise orbits file
+    - `t_0::DateTime`: Reference time
+
+    # Output
+    - `osv::Array{Array{float}}`: six arrays with respectvely X,Y,Z,V_x,V_y,V_z observationer.
+    - `t_sv::Array{Array{float}}`: time of each orbit state relative to t_0 in seconds.
+"""
 function load_pod(path,t_0)
 
     # Load data as dict
@@ -19,7 +32,6 @@ function load_pod(path,t_0)
 
     # get times
     t_sv = [str_date2float(elem["UTC"][5:end],t_0) for elem in osv_dict]
-    
+
     return osv,t_sv
 end
-
