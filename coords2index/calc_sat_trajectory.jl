@@ -4,29 +4,30 @@ using Dates
 
 
 """
-    polyfit_sv(y_list, t; poly_degree=4, do_scale=1)
+    polyfit_sv(y, t; poly_degree=4, do_scale=1)
 
 Fit polynomials to each array in y_list using t as the argument
 
 # Arguments
-- `y_list`: Array of Arrays with dependent variables
-- `t`: Array of independent variable
+- `y:: Array(NxM)`: Array with N observations of M dependd varibles
+- `t::Array(N)`: Array of N times
 
 # Returns
-- `poly_list`: Array of fitted polynomials
-- `y_mean`: Array of mean (only if, do_scale=1)
-- `y_std`: Array of standard deviation (only if, do_scale=1)
+- `poly_list::Array(M)`: M normalized polynomials
+- `y_mean::Array(M)`: Array of mean (only if, do_scale=1)
+- `y_std::Array(M)`: Array of standard deviation (only if, do_scale=1)
 """
-function polyfit_sv(y_list, t; poly_degree=4, do_scale=1)
-    y_mean = mean.(y_list)
-    y_std = std.(y_list)
+
+function polyfit_sv(y, t; poly_degree=4, do_scale=1)
+    y_mean = mean(y,dims=1)
+    y_std = std(y,dims=1)
 
     if do_scale==1
-        y_norm = [(y_list[i].-y_mean[i])./y_std[i] for i in range(1,stop=length(y_list))]
-        poly_list = [Polynomials.polyfit(t, column,poly_degree) for column in y_norm]
-        return poly_list, y_mean, y_std
+        y_norm = (y.-y_mean)./y_std
+        poly_list = [Polynomials.polyfit(t, y_norm[:,i],poly_degree) for i in 1:size(y)[2]]
+        return poly_list, dropdims(y_mean, dims=1), dropdims(y_std, dims=1)
     elseif do_scale==0
-        poly_list = [Polynomials.polyfit(t, column, poly_degree) for column in y_list]
+        poly_list = [Polynomials.polyfit(t, y[:,i],poly_degree) for i in 1:size(y)[2]]
         return poly_list
     else
         println("Error: do_scal can be 1 or 0")
@@ -34,9 +35,7 @@ function polyfit_sv(y_list, t; poly_degree=4, do_scale=1)
     end
 end
 
-
-
-
+##############
 
 
 function polyval_sv(poly_list,t)
@@ -51,25 +50,28 @@ end
 evaluate normalized polynomials for time, t
 
 # Arguments
-- `poly_list`: List of normalized fitted polynomials for [X,Y,Z,VX,VY,VZ]
+- `poly_list::Array(M)`: Array of normalized fitted polynomials for [X,Y,Z,VX,VY,VZ]
 - `t`: Number of seconds after t_0
-- `y_std`: standard deviation of the data
-- `y_mean`: mean of the data
+- `y_std::Array(M)`: standard deviation of the data
+- `y_mean::Array(M)`: mean of the data
 
 # Returns
 - `y_fit`: Array of Array with each polynomial evaluate for all  t_0 + Seconds(t).
 
 """
+
+
 function polyval_sv(poly_list,t,y_mean,y_std)
     y_norm_fit = polyval_sv(poly_list,t)
 
     # re-normalize the fitted data
-    y_fit = [y_norm_fit[i].*y_std[i].+y_mean[i] for i in range(1,stop=length(y_norm_fit))];
+    y_fit = y_norm_fit .* y_std .+ y_mean
     return y_fit
 end
 
 
 
+###############
 """
     calc_sat_trajectory(osv,t_sv, t_start, t_stop; poly_degree=4,
                         max_time_margin=240)
@@ -78,17 +80,20 @@ Fit normalized polynomials to orbit state vectors (osv) for the time period of
 t_start to t_stop.
 
 # Arguments
-- `osv`: Array with [X,Y,Z,VX,VY,VZ] data
+- `osv::Array(Nx6)`: Array with [X,Y,Z,VX,VY,VZ] data
 - `t_sv::Float`: time in seconds
 - `t_start::Float`: start time
 - `t_stop::Float`: stop time
 
 # Returns
-- `osv_poly`: List of normalized fitted polynomials for [X,Y,Z,VX,VY,VZ]
-- `osv_mean`: mean of osv
-- `osv_std`: standard deviation of osv
+- `osv_poly::Array(6)`: Array of normalized fitted polynomials for [X,Y,Z,VX,VY,VZ]
+- `osv_mean::Array(6)`: mean of osv
+- `osv_std::Array(6)`: standard deviation of osv
 
 """
+
+
+
 function calc_sat_trajectory(osv,t_sv, t_start, t_stop; poly_degree=4, max_time_margin=240.)
     dt = t_stop - t_start;
     t_mid = t_start + dt / 2
@@ -106,10 +111,11 @@ function calc_sat_trajectory(osv,t_sv, t_start, t_stop; poly_degree=4, max_time_
     
     # slice data to close times
     nearby_state_vector_t_sv = t_sv[nearby_state_vector_idx];
-    nearby_state_vector_osv = [elem[nearby_state_vector_idx] for elem in osv];
+    nearby_state_vector_osv = osv[nearby_state_vector_idx,:];
 
     osv_poly, osv_mean, osv_std =polyfit_sv(nearby_state_vector_osv,nearby_state_vector_t_sv,poly_degree=poly_degree)
 
     return osv_poly, osv_mean, osv_std
 
 end
+

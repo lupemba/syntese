@@ -30,11 +30,13 @@ julia> rrange, ttime = zero_doppler_bisect(point_xyz, azimuth_start_time, azimut
 ```
 
 # Returns
-- `sqrt(line_of_sight' * line_of_sight)`: The slant range i.e. the norm of the
-line_of_sight vector.
 - `trial_time`: the time after t0 where the satellite is at zero doppler
 wrt to target
+- `sqrt(line_of_sight' * line_of_sight)`: The slant range i.e. the norm of the
+line_of_sight vector.
 """
+
+
 function zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
                              osv_poly, osv_mean, osv_std)
     #=
@@ -79,9 +81,9 @@ function zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
         iter += 1;
     end
 
-    if iter == max_iter
+    if iter >= max_iter
         print("Error, max iteration reached")
     end
 
-    return [sqrt(line_of_sight' * line_of_sight), trial_time]
+    return [trial_time,sqrt(line_of_sight' * line_of_sight)]
 end
