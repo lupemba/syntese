@@ -62,7 +62,9 @@ function load_s1slc_ann(path)
 
     # create a array with info about what line the first line in each burst corrosponds to in a mosaic
     first_line_mosaic = 1 .+(burst_meta["burst_times"] .- s1_meta["t_start"]) .*s1_meta["azimuth_frequency"]
+    #println("test",first_line_mosaic) = test[1.0, 1343.0, 2684.0, 4027.0, 5368.0, 6710.0, 8053.0, 9393.0, 10735.0, 12078.0]
     burst_meta["first_line_mosaic"] = round.(Int,first_line_mosaic)
+    
     
     # Get GeoLocations 
     geolocation_list = meta_dict["product"]["geolocationGrid"]["geolocationGridPointList"]["geolocationGridPoint"]
