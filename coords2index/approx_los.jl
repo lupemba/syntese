@@ -6,16 +6,12 @@ using LinearAlgebra
     approx_los(osv_fit,s1_annn)ters)
 
     # Arguments
-    - `osv_fit::Array{float}(6)`: [ X,Y,Z,V_x,V_y,V_z] of the satellite.
-    - `s1_annn::Dict`: Dict with relevant meta info. See load_s1slc_ann(path)
+    - `x_sat::Array{float}(3)`: [ X,Y,Z] of the satellite.
+    - `v_sat::Array{float}(3)`: [ V_x,V_y,V_z] of the satellite.
     # Output
     - `los::Array{float}(3)`: Line of sight to mid swath in elipsiodal coordinates
 """
-function approx_los(osv_fit,s1_annn)
-    theta_0 = s1_annn["incidence_angle_mid"]*pi/180
-
-    x_sat = osv_fit[1:3]
-    v_sat = osv_fit[4:6]
+function approx_los(x_sat,v_sat,theta_0)
 
     #ECEF basis coordinates
     x_hat_ecef = x_sat / sqrt(x_sat'*x_sat) # Towards earth center
