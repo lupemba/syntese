@@ -46,7 +46,8 @@ function load_s1slc_ann(path)
     img_info = meta_dict["product"]["imageAnnotation"]["imageInformation"];
     s1_meta["range_pixel_spacing"] = parse(Float64,img_info["rangePixelSpacing"])
     s1_meta["azimuth_frequency"] = parse(Float64,img_info["azimuthFrequency"])
-    s1_meta["slant_range_time"] = parse(Float64,img_info["slantRangeTime"]) 
+    s1_meta["slant_range_time"] = parse(Float64,img_info["slantRangeTime"])
+    s1_meta["incidence_angle_mid"] = parse(Float64,img_info["incidenceAngleMidSwath"])
 
     # Get infor about burst
     swath_timing = meta_dict["product"]["swathTiming"]
