@@ -38,7 +38,7 @@ line_of_sight vector.
 
 
 function zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
-                             osv_poly, osv_mean, osv_std)
+                             osv_poly, osv_mean, osv_std, debug = 0)
     #=
     TO-DO
     Change while loop to more advanced optimization
@@ -58,6 +58,7 @@ function zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
     iter = 0
     line_of_sight = 0
     trial_time = 0
+    osv = [0.,0.,0.,0.,0.,0.]
 
     while (search_interval_duration > small_time_interval) && (iter < max_iter)
 
@@ -65,7 +66,6 @@ function zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
         trial_time = search_interval_start + search_interval_duration
 
         osv = polyval_sv(osv_poly, trial_time, osv_mean, osv_std)
-
         trial_sat_position = osv[1:3]
         line_of_sight = point_xyz .- trial_sat_position
 
@@ -84,6 +84,10 @@ function zero_doppler_bisect(point_xyz, azimuth_start_time, azimuth_stop_time,
     if iter >= max_iter
         print("Error, max iteration reached")
     end
-
-    return [trial_time,sqrt(line_of_sight' * line_of_sight)]
+    
+    if debug == 0
+        return [trial_time,sqrt(line_of_sight' * line_of_sight)]
+    else
+        return [trial_time,sqrt(line_of_sight' * line_of_sight), osv,line_of_sight, iter]
+    end
 end

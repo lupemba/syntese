@@ -3,7 +3,7 @@ using LinearAlgebra
 
 
 """
-    approx_los(osv_fit,s1_annn)ters)
+    approx_los(osv_fit,s1_annn)
 
     # Arguments
     - `x_sat::Array{float}(3)`: [ X,Y,Z] of the satellite.
