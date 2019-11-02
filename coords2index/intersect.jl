@@ -9,7 +9,6 @@
 """
 
 function intersect(x_sat,los,semi_major_axis=6378137.,flattening=1/298.257223563)
-    x_sat = osv_test[1:3]
 
     semi_minor_axis = semi_major_axis*(1 - flattening)
     epsilon = (semi_major_axis/semi_minor_axis)^2  - 1 # second eccentricity squared

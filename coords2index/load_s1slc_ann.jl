@@ -78,6 +78,10 @@ function load_s1slc_ann(path)
     # Collect info
     s1_meta["burst_meta"] = burst_meta
     s1_meta["geolocation"] = geolocation_dict
+    
+    
+    # Sentinel 1 is right looking
+    s1_meta["right_looking"] = true
 
     return s1_meta
 end
