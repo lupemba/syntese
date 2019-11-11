@@ -7,6 +7,8 @@ include("load_pod.jl");
 """
     llh2sali(llh, osv, t_sv, sar_parameters)
 
+    Convert from latitude longitude and height to SAR coordintes
+
     # Arguments
     - `llh::Array{float}(Nx3)`: array N points of latitude(deg),longitude(deg),heigt(m)
     - `osv::Array{float}(Lx6)`: Array with respectvely X,Y,Z,V_x,V_y,V_z observationer.
@@ -30,8 +32,8 @@ function llh2sali(llh, osv, t_sv, sar_parameters)
     deg2rad = pi/180
 
     osv_poly, osv_mean, osv_std = calc_sat_trajectory(osv, t_sv, t_start, t_stop)
-    
-    
+
+
     sali = Array{Float64}(undef,size(llh)[1],2)
 
     for i in 1:size(llh)[1]
