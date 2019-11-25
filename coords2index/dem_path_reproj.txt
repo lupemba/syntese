@@ -1,0 +1,1 @@
+/Users/eyu/YOEO_local/data/srtm_38_01/srtm_38_01_reprojected.tif
