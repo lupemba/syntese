@@ -1,9 +1,10 @@
 module SlcUtil
-
-#TODO Move _print2maps_co
-
 import Statistics
 import Images
+
+using PyCall
+scipy_interp = pyimport("scipy.interpolate");
+
 
 export SlcRaw, show_img, original_view, footprint
 

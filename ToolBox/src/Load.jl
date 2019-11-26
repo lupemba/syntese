@@ -3,6 +3,8 @@ import PyCall
 import EzXML
 import XMLDict
 import Dates
+rasterio = PyCall.pyimport("rasterio")
+
 
 export s1slc_data, s1slc_ann, pod
 
@@ -14,7 +16,6 @@ export s1slc_data, s1slc_ann, pod
     as img and then slicing it as img[view]. It just saves memory.
 """
 function s1slc_data(path,view)
-    rasterio = PyCall.pyimport("rasterio")
     dataset = rasterio.open(path)
 
     # subtract one because array[a:b] in python retuns the (a+1)'th to b'th element
@@ -186,6 +187,41 @@ function _str_date2float(time,t_0)
 
     return dt_i + s
 end
+
+#TODO Add check for row column bounds
+function dem(dem_path, latlon_window; nan_fill= NaN, padding=[0,0])
+
+    dem_annotations = rasterio.open(dem_path)
+    # find the corresponding slc corner in row, col of the dem and add padding
+    (max_row, min_col) = dem_annotations.index(latlon_window[2][1], latlon_window[1][1])
+    (min_row, max_col) = dem_annotations.index(latlon_window[2][2], latlon_window[1][2]);
+
+    # make intervals with padding for .read's window function
+    row_interval = (min_row - padding[1], max_row + padding[1])
+    col_interval = (min_col - padding[2], max_col + padding[2])
+
+    # load subset of dem
+    dem_data = dem_annotations.read(1, window=(row_interval, col_interval))
+
+    dem_data[dem_data .== (-32768)] .= nan_fill;
+
+    #dem_view = [row_interval[1]:row_interval[2], col_interval[1]:col_interval[2]]
+    transform = dem_annotations.get_transform()
+
+    rows = collect(1:dem_annotations.height);
+    columns = collect(1:dem_annotations.width);
+    lon = transform[1] .+ rows .* transform[2];
+    lat  = transform[4] .+ columns .* transform[6];
+
+    #dem = dem[index1,index2];
+    lat = lat[row_interval[1]:row_interval[2]-1]
+    lon = lon[col_interval[1]:col_interval[2]-1];
+
+    # return subset of dem and dem_view
+    return lat, lon, dem_data
+end
+
+
 
 
 
