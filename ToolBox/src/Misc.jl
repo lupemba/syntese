@@ -7,9 +7,7 @@ scipy_interp = pyimport("scipy.interpolate");
 # TODO: Initialise whole y.x-grid instead of hcat
 function interp2grid(x_point, y_point, value, x_range, y_range)
     # create grid to evaluate interpolation to
-    x,y = grid(collect(x_range),collect(y_range))
-    x = reshape(x, :)
-    y = reshape(y, :)
+    x,y = flatten(collect(x_range),collect(y_range))
     # interpolate z values to input grid view
     return scipy_interp.griddata(hcat(x_point, y_point), value, (x, y), method="linear");
 end
@@ -34,13 +32,21 @@ function grid(index_1,index_2)
 end
 
 
-function flatten(index_1,index_2,data_2d)
+function flatten(index_1,index_2)
     index_1_array, index_2_array = grid(index_1,index_2)
     index_1_array = reshape(index_1_array, :)
     index_2_array = reshape(index_2_array, :)
+    return index_1_array, index_2_array
+end
+
+function flatten(index_1,index_2,data_2d)
+    index_1_array, index_2_array = flatten(index_1,index_2)
     data_array = reshape(data_2d, :)
     return index_1_array, index_2_array, data_array
 end
+
+
+
 
 """
     print2maps_co(lat,lon,name="Corner",color="#FF0000")
