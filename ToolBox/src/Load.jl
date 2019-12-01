@@ -6,16 +6,19 @@ import Dates
 rasterio = PyCall.pyimport("rasterio")
 
 
-export s1slc_data, s1slc_ann, pod
+export slc_data, slc_ann, precise_orbit
 
 
 """
-    s1slc_data(path,view)
+    slc_data(path, view, satellite="s1")
 
     Load Sentinel 1 SLC tiff using the view. Same as loading the the whole tiff
     as img and then slicing it as img[view]. It just saves memory.
 """
-function s1slc_data(path,view)
+function slc_data(path, view, satellite="s1")
+    if satellite != "s1"
+        println("Warning this function is only for sentinel 1 SCL images. Updates will come later")
+    end
     dataset = rasterio.open(path)
 
     # subtract one because array[a:b] in python retuns the (a+1)'th to b'th element
@@ -27,7 +30,7 @@ end
 
 
 """
-    load_s1slc_ann(path)
+    slc_meta(path, satellite="s1")
 
     Load annotation of s1 SLC products and
 
@@ -37,7 +40,10 @@ end
     # Output
     - `s1_meta::Dict`: Dict with relevant meta info
 """
-function s1slc_ann(path)
+function slc_meta(path, satellite="s1")
+    if satellite != "s1"
+        println("Warning this function is only for sentinel 1 SCL images. Updates will come later")
+    end
     ## open xml files
     doc = EzXML.readxml(path)
     meta_dict = XMLDict.xml_dict(doc)
@@ -112,7 +118,7 @@ end
 
 
 """
-    load_pod(path,t_0)
+    precise_orbit(path,t_0)
 
     Load preciese orbit files
 
@@ -121,35 +127,27 @@ end
     - `t_0::DateTime`: Reference time
 
     # Output
-    - `osv:: Array{float}(Nx6)`: six arrays with respectvely X,Y,Z,V_x,V_y,V_z observationer.
-    - `t_sv::Array{float}(N)`: time of each orbit state relative to t_0 in seconds.
+    - `state_vectors:: Array{float}(Nx6)`: six arrays with respectvely X,Y,Z,V_x,V_y,V_z observationer.
+    - `time_state_vectors::Array{float}(N)`: time of each orbit state relative to t_0 in seconds.
 """
-function pod(path,t_0)
+function precise_orbit(path,t_0)
 
     # Load data as dict
     doc = EzXML.readxml(path)
     pod_dict = XMLDict.xml_dict(doc)
 
     # Acces orbit state vectors
-    osv_dict = pod_dict["Earth_Explorer_File"]["Data_Block"]["List_of_OSVs"]["OSV"];
+    state_vectors_dict = pod_dict["Earth_Explorer_File"]["Data_Block"]["List_of_OSVs"]["OSV"];
 
     # get vectors
     tags = ["X","Y","Z","VX","VY","VZ"]
-    osv = [[parse(Float64,elem[tag][""]) for elem in osv_dict] for tag in tags];
-    osv = hcat(osv[1],osv[2],osv[3],osv[4],osv[5],osv[6])
+    state_vectors = [[parse(Float64,elem[tag][""]) for elem in state_vectors_dict] for tag in tags];
+    state_vectors = hcat(state_vectors...)
     # get times
-    t_sv = [_str_date2float(elem["UTC"][5:end],t_0) for elem in osv_dict]
+    time_state_vectors = [_str_date2float(elem["UTC"][5:end],t_0) for elem in state_vectors_dict]
 
-    return osv,t_sv
+    return state_vectors,time_state_vectors
 end
-
-
-
-
-
-
-
-
 
 """
     _str2date(time)
@@ -189,12 +187,12 @@ function _str_date2float(time,t_0)
 end
 
 #TODO Add check for row column bounds
-function dem(dem_path, latlon_window; nan_fill= NaN, padding=[0,0])
+function dem(dem_path, lat_lon_window; nan_fill= NaN, padding=[0,0])
 
     dem_annotations = rasterio.open(dem_path)
     # find the corresponding slc corner in row, col of the dem and add padding
-    (max_row, min_col) = dem_annotations.index(latlon_window[2][1], latlon_window[1][1])
-    (min_row, max_col) = dem_annotations.index(latlon_window[2][2], latlon_window[1][2]);
+    (max_row, min_col) = dem_annotations.index(lat_lon_window[2][1], lat_lon_window[1][1])
+    (min_row, max_col) = dem_annotations.index(lat_lon_window[2][2], lat_lon_window[1][2]);
 
     # make intervals with padding for .read's window function
     row_interval = (min_row - padding[1], max_row + padding[1])

@@ -132,7 +132,6 @@ end
     !!!
     Theses coordinates can easily be 100 pixels off
     !!!
-
 """
 function footprint(s1_ann,view)
     # Get corners
