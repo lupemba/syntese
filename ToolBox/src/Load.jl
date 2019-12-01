@@ -26,9 +26,6 @@ function slc_data(path, view, satellite="s1")
     return dataset.read(1, window=window)
 end
 
-
-
-
 """
     slc_meta(path, satellite="s1")
 
@@ -116,7 +113,6 @@ function slc_meta(path, satellite="s1")
     return s1_meta
 end
 
-
 """
     precise_orbit(path,t_0)
 
@@ -151,9 +147,8 @@ end
 
 """
     _str2date(time)
-
-Convert a string of format "2017-03-15T05:39:50.703105" to a DateTime with an
-accuarcy of minutes
+    Convert a string of format "2017-03-15T05:39:50.703105" to a DateTime with an
+    accuarcy of minutes
 """
 function _str2date(time)
     y = parse(Int,time[1:4])
@@ -186,22 +181,66 @@ function _str_date2float(time,t_0)
     return dt_i + s
 end
 
-#TODO Add check for row column bounds
-function dem(dem_path, lat_lon_window; nan_fill= NaN, padding=[0,0])
+"""
+    dem(path, lat_lon_window; nan_fill= NaN, padding=[0,0],nan_value =-32768)
 
-    dem_annotations = rasterio.open(dem_path)
+    Load preciese orbit files
+
+    # Arguments
+    - `path::String`: path to precise orbits file
+    - `lat_lon_window`: Window that specifise what subset to load ((min_lat,max_lat)(min_lon,max_lon))
+    - `nan_fill::float`: Value to replace NaN values
+    - `padding`: [lat_padding,lon_padding]. Loads the extra padding (in pixel) to the image
+    - `nan_value::float`: Value to be replaced with nan_fill
+
+    # Output
+    - `lat:: Array{float}(k)`: Lattitudes.
+    - `lon::Array{float}(l)`: Longitudes.
+    - `dem_data::Array{float}(kxl)`: Heights.
+"""
+function dem(path, lat_lon_window; nan_fill= NaN, padding=[0,0],nan_value =-32768)
+
+    dem_annotations = rasterio.open(path)
     # find the corresponding slc corner in row, col of the dem and add padding
     (max_row, min_col) = dem_annotations.index(lat_lon_window[2][1], lat_lon_window[1][1])
     (min_row, max_col) = dem_annotations.index(lat_lon_window[2][2], lat_lon_window[1][2]);
 
+
     # make intervals with padding for .read's window function
-    row_interval = (min_row - padding[1], max_row + padding[1])
-    col_interval = (min_col - padding[2], max_col + padding[2])
+    min_row = min_row - padding[1]
+    max_row = max_row + padding[1]
+    min_col = min_col - padding[2]
+    max_col = max_col + padding[2]
+
+
+    if min_row < 0
+        min_row = 0
+        println("Warning min row are not in the picture.")
+    end
+
+    if max_row > dem_annotations.height
+        max_row = dem_annotations.height
+        println("Warning max row are not in the picture.")
+    end
+
+    if min_col < 0
+        min_col = 0
+        println("Warning min column are not in the picture.")
+    end
+
+    if max_col > dem_annotations.width
+        max_col = dem_annotations.width
+        println("Warning max column are not in the picture.")
+    end
+
+
+    row_interval = (min_row , max_row)
+    col_interval = (min_col , max_col)
 
     # load subset of dem
     dem_data = dem_annotations.read(1, window=(row_interval, col_interval))
 
-    dem_data[dem_data .== (-32768)] .= nan_fill;
+    dem_data[dem_data .== (nan_value)] .= nan_fill;
 
     #dem_view = [row_interval[1]:row_interval[2], col_interval[1]:col_interval[2]]
     transform = dem_annotations.get_transform()

@@ -3,14 +3,24 @@ module Misc
 using PyCall
 scipy_interp = pyimport("scipy.interpolate");
 
-# TODO: virker ikke med x_step > 1
-# TODO: Initialise whole y.x-grid instead of hcat
-function interp(x_point, y_point, value, x, y)
+
+"""
+    interp(x_point, y_point, value, x, y,method="linear")
+
+    Julia wrapper for scipy.interpolate.griddata
+        interpolates from x_point, y_point, to x,y.
+
+"""
+function interp(x_point, y_point, value, x, y,method="linear")
     # interpolate z values to input grid view
-    return scipy_interp.griddata(hcat(x_point, y_point), value, (x, y), method="linear");
+    return scipy_interp.griddata(hcat(x_point, y_point), value, (x, y), method);
 end
 
+"""
+    grid(index_1,index_2)
 
+    Creates two 2d grids from two arrays.
+"""
 function grid(index_1,index_2)
     n_1 = length(index_1)
     n_2 = length(index_2)
@@ -29,7 +39,12 @@ function grid(index_1,index_2)
     return index1_grid, index2_grid
 end
 
+"""
+    flatten(index_1,index_2;data_2d)
 
+    Gives two arrays with all combinations of index1 and index2.
+    If data_2d is given then it is also returned as an array
+"""
 function flatten(index_1,index_2)
     index_1_array, index_2_array = grid(index_1,index_2)
     index_1_array = reshape(index_1_array, :)
