@@ -75,6 +75,7 @@ function slc_meta(path, satellite="s1")
     s1_meta["azimuth_frequency"] = parse(Float64,img_info["azimuthFrequency"])
     s1_meta["slant_range_time"] = parse(Float64,img_info["slantRangeTime"])
     s1_meta["incidence_angle_mid"] = parse(Float64,img_info["incidenceAngleMidSwath"])
+    s1_meta["azimuth_pixel_spacing"] = parse(Float64,img_info["azimuthPixelSpacing"])
 
     # Get infor about burst
     swath_timing = meta_dict["product"]["swathTiming"]
