@@ -63,6 +63,8 @@ function slc_meta(path, satellite="s1")
     s1_meta["polarisation"] = meta_dict["product"]["adsHeader"]["polarisation"]
     s1_meta["mode"] = meta_dict["product"]["adsHeader"]["mode"]
     s1_meta["swath"] = parse(Int, string(meta_dict["product"]["adsHeader"]["swath"][end]))
+    s1_meta["range_frequency"] = parse(Float64,
+            meta_dict["product"]["generalAnnotation"]["productInformation"]["rangeSamplingRate"])
     s1_meta["image_number"] = meta_dict["product"]["adsHeader"]["imageNumber"]
     s1_meta["absolute_orbit_number"] = meta_dict["product"]["adsHeader"]["absoluteOrbitNumber"]
     s1_meta["mission_data_id"] = meta_dict["product"]["adsHeader"]["missionDataTakeId"]

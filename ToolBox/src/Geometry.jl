@@ -21,13 +21,12 @@ export to_lat_lon, to_line_sample
     # Output
     - `llh::Array{float}(Nx3)`: array N points of latitude(deg),longitude(deg),heigt(m)
 """
-function to_lat_lon(line_sample, height, state_vectors, time_state_vectors, meta)
-    c = 299792458 # speed of light
+function to_lat_lon(line_sample, height, state_vectors, time_state_vectors, meta; c = 299792458)
     t_start = meta["t_start"]
     t_stop = meta["t_stop"]
     sign_angle  = meta["right_looking"] ? 1 : -1
     theta_0 = sign_angle*abs(meta["incidence_angle_mid"]*pi/180)
-    range_pixel_spacing =  meta["range_pixel_spacing"]
+    range_pixel_spacing =  c/(2*meta["range_frequency"])
     inv_azimuth_frequency =  1/meta["azimuth_frequency"]
     r_near =  meta["slant_range_time"]  *c/2
 
@@ -71,15 +70,14 @@ end
     # Output
     - `line_sample::Array{float}(Nx2)`: - Array of points [line,sample]
 """
-function to_line_sample(lat_lon, height, state_vectors, time_state_vectors, meta)
-
-    c = 299792458 # speed of light
+function to_line_sample(lat_lon, height, state_vectors, time_state_vectors, meta; c = 299792458)
 
     t_0 = meta["t_0"]
     t_start = meta["t_start"]
     t_stop = meta["t_stop"]
 
-    inv_range_pixel_spacing =  1/meta["range_pixel_spacing"]
+
+    inv_range_pixel_spacing = (2*meta["range_frequency"])/c
     azimuth_frequency =  meta["azimuth_frequency"]
     r_near =  meta["slant_range_time"]  *c/2
     deg2rad = pi/180
