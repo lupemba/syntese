@@ -1,11 +1,68 @@
 module Geometry
 
+include("Misc.jl")
+import .Misc
 import Polynomials
 using LinearAlgebra
 using Statistics
 using Dates
 
-export to_lat_lon, to_line_sample
+export to_lat_lon, to_line_sample,look_up_table
+
+
+"""
+    look_up_table(master_view,meta,precise_orbit,dem)
+
+    Create a look up table for a given view in the master image
+
+    # Arguments
+    - `master_view::Array{range}(2)`: - (line_range,sample_range), The ranges can have step sizes other
+                                    than 1. The look up table is computed for all pixels in the view
+    - `meta::Array{Dict}(2)`: - (master_meta, slave_meta)
+    - `precise_orbit`: - (master_precise_orbit, slave_precise_orbit) as returned by Load.precise_orbit()
+    - `time_state_vectors::Array{float}(L)`: time of each orbit state relative to t_0 in seconds.
+    - `dem`: (lat, lon, dem_data) as returned by Load.dem()
+    # Output
+    - `lut::Dict`: Dict with, [master_line,master_sample,heights,latitude,longitude,slave_line,slave_sample]
+"""
+function look_up_table(master_view,meta,precise_orbit,dem)
+    # initilize lut
+    lut  = Dict{String,Any}()
+
+    # Get master line and sample
+    master_line_lut,master_sample_lut = Misc.flatten(master_view[1],master_view[2])
+    lut["master_line"] = master_line_lut
+    lut["master_sample"] = master_sample_lut
+
+    # Get heights
+    lat_dem,lon_dem, heights = Misc.flatten(dem...)
+    dem = 0 # clear memory
+    line_sample_dem = to_line_sample(hcat(lat_dem,lon_dem),heights,precise_orbit[1]...,meta[1])
+    lut["heights"] = Misc.interp(line_sample_dem[:,1], line_sample_dem[:,2], heights,
+                            lut["master_line"], lut["master_sample"])
+    # clear memory
+    lat_dem = 0
+    lon_dem = 0
+    heights = 0
+    line_sample_dem = 0
+
+    # Get latitude and longitude
+    lat_lon = to_lat_lon(hcat(lut["master_line"],lut["master_sample"]),lut["heights"],
+    precise_orbit[1]...,meta[1])
+    lut["latitude"] = lat_lon[:,1]
+    lut["longitude"] = lat_lon[:,2]
+    lat_lon = 0 # clear memory
+
+    # Get slave line and sample
+    line_sample = to_line_sample(hcat(lut["latitude"],lut["longitude"]),lut["heights"],
+    precise_orbit[2]...,meta[2]);
+    lut["slave_line"] = line_sample[:,1]
+    lut["slave_sample"] = line_sample[:,2]
+
+    return lut
+end
+
+
 
 """
     salih2llh(line_sample, height , state_vectors, time_state_vectors, meta)
