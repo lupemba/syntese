@@ -71,7 +71,8 @@ function slc_meta(path, satellite="s1")
     s1_meta["absolute_orbit_number"] = meta_dict["product"]["adsHeader"]["absoluteOrbitNumber"]
     s1_meta["mission_data_id"] = meta_dict["product"]["adsHeader"]["missionDataTakeId"]
     s1_meta["pass"] = meta_dict["product"]["generalAnnotation"]["productInformation"]["pass"]
-
+    s1_meta["azimuth_steering_rate"] = parse(Float64, meta_dict["product"]["generalAnnotation"]["productInformation"]["azimuthSteeringRate"])
+    
 
     # get infor for "imageInformation"
     img_info = meta_dict["product"]["imageAnnotation"]["imageInformation"];
@@ -80,18 +81,35 @@ function slc_meta(path, satellite="s1")
     s1_meta["slant_range_time"] = parse(Float64,img_info["slantRangeTime"])
     s1_meta["incidence_angle_mid"] = parse(Float64,img_info["incidenceAngleMidSwath"])
     s1_meta["azimuth_pixel_spacing"] = parse(Float64,img_info["azimuthPixelSpacing"])
-
+    s1_meta["number_of_samples"] = parse(Int, img_info["numberOfSamples"])
+    
     # Get infor about burst
     swath_timing = meta_dict["product"]["swathTiming"]
     s1_meta["lines_per_burst"] =  parse(Int,swath_timing["linesPerBurst"])
     s1_meta["samples_per_burst"] =  parse(Int,swath_timing["samplesPerBurst"])
     s1_meta["burst_count"] = parse(Int,swath_timing["burstList"][:count])
+    
+    s1_meta["azimuth_time_interval"] = parse(Float64, meta_dict["product"]["imageAnnotation"]["imageInformation"]["azimuthTimeInterval"])
 
+    
     # Get info for each burst
     burst = swath_timing["burstList"]["burst"]
     burst_meta["burst_times"] = [_str_date2float(elem["azimuthTime"],s1_meta["t_0"]) for elem in burst]
     burst_meta["fist_valid_pixel"] = [parse.(Int,split(elem["firstValidSample"][""])) for elem in burst]
     burst_meta["last_valid_pixel"] = [parse.(Int,split(elem["lastValidSample"][""])) for elem in burst];
+    
+    # NOTE: undre mig lidt over burst count er 10 men data_dc_polynomial løber op til 11
+    data_dc_polynomial = Array{Float64, 2}(undef, s1_meta["burst_count"]+1, 3)
+    for i in 1:s1_meta["burst_count"]+1
+        data_dc_polynomial[i, :] = [parse(Float64, param) for param in split(meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"][i]["dataDcPolynomial"][""])]
+    end
+    burst_meta["data_dc_polynomial"] = data_dc_polynomial
+    
+    azimuth_fm_rate_polynomial = Array{Float64, 2}(undef, s1_meta["burst_count"]+1, 3)
+    for i in 1:s1_meta["burst_count"]+1
+        azimuth_fm_rate_polynomial[i, :] = [parse(Float64, param) for param in split(meta_dict["product"]["generalAnnotation"]["azimuthFmRateList"]["azimuthFmRate"][i]["azimuthFmRatePolynomial"][""])]
+    end
+    burst_meta["azimuth_fm_rate_polynomial"] = azimuth_fm_rate_polynomial
 
     # create a array with info about what line the first line in each burst corrosponds to in a mosaic
     first_line_mosaic = 1 .+(burst_meta["burst_times"] .- s1_meta["t_start"]) .*s1_meta["azimuth_frequency"]
