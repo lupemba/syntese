@@ -100,17 +100,23 @@ function slc_meta(path, satellite="s1")
     
     # NOTE: undre mig lidt over burst count er 10 men data_dc_polynomial løber op til 11
     data_dc_polynomial = Array{Float64, 2}(undef, s1_meta["burst_count"]+1, 3)
+    data_dc_t0 = Array{Float64, 1}(undef, s1_meta["burst_count"]+1)
     for i in 1:s1_meta["burst_count"]+1
         data_dc_polynomial[i, :] = [parse(Float64, param) for param in split(meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"][i]["dataDcPolynomial"][""])]
+        data_dc_t0[i] = parse(Float64, meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"][i]["t0"])
     end
     burst_meta["data_dc_polynomial"] = data_dc_polynomial
+    burst_meta["data_dc_t0"] = data_dc_t0
     
     azimuth_fm_rate_polynomial = Array{Float64, 2}(undef, s1_meta["burst_count"]+1, 3)
+    azimuth_fm_rate_t0 = Array{Float64, 1}(undef, s1_meta["burst_count"]+1)
     for i in 1:s1_meta["burst_count"]+1
         azimuth_fm_rate_polynomial[i, :] = [parse(Float64, param) for param in split(meta_dict["product"]["generalAnnotation"]["azimuthFmRateList"]["azimuthFmRate"][i]["azimuthFmRatePolynomial"][""])]
+        azimuth_fm_rate_t0[i] = parse(Float64, meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"][i]["t0"])
     end
     burst_meta["azimuth_fm_rate_polynomial"] = azimuth_fm_rate_polynomial
-
+    burst_meta["azimuth_fm_rate_t0"] = azimuth_fm_rate_t0
+    
     # create a array with info about what line the first line in each burst corrosponds to in a mosaic
     first_line_mosaic = 1 .+(burst_meta["burst_times"] .- s1_meta["t_start"]) .*s1_meta["azimuth_frequency"]
     #println("test",first_line_mosaic) = test[1.0, 1343.0, 2684.0, 4027.0, 5368.0, 6710.0, 8053.0, 9393.0, 10735.0, 12078.0]
