@@ -6,6 +6,8 @@ import Polynomials
 using LinearAlgebra
 using Statistics
 using Dates
+using PyCall
+scipy_interp = pyimport("scipy.interpolate");
 
 export to_lat_lon, to_line_sample,look_up_table
 
@@ -25,12 +27,21 @@ export to_lat_lon, to_line_sample,look_up_table
     # Output
     - `lut::Dict`: Dict with, [master_line,master_sample,heights,latitude,longitude,slave_line,slave_sample]
 """
-function look_up_table(master_view,meta,precise_orbit,dem)
+function look_up_table(master_view,meta,precise_orbit,dem;stride=(1,1))
     # initilize lut
     lut  = Dict{String,Any}()
 
+    if stride==(1,1)
+       master_line_lut,master_sample_lut = Misc.flatten(master_view[1],master_view[2])
+   else
+       line = collect(master_view[1].start:stride[1]:master_view[1].stop)
+       line[end] = master_view[1].stop
+       sample = collect(master_view[2].start:stride[2]:master_view[2].stop)
+       sample[end] = master_view[2].stop
+
+       master_line_lut,master_sample_lut = Misc.flatten(line,sample)
+   end
     # Get master line and sample
-    master_line_lut,master_sample_lut = Misc.flatten(master_view[1],master_view[2])
     lut["master_line"] = master_line_lut
     lut["master_sample"] = master_sample_lut
 
@@ -58,6 +69,18 @@ function look_up_table(master_view,meta,precise_orbit,dem)
     precise_orbit[2]...,meta[2]);
     lut["slave_line"] = line_sample[:,1]
     lut["slave_sample"] = line_sample[:,2]
+
+
+    if !(stride==(1,1))
+        for (key,elem) in lut
+            if !(key == "master_sample" || key == "master_line")
+                F = scipy_interp.interp2d(sample,line, reshape(lut[key],(length(line),length(sample))))
+                lut[key] = reshape(F(collect(master_view[2]),collect(master_view[1])),:)
+            end
+        end
+        lut["master_line"],lut["master_sample"] = Misc.flatten(master_view[1],master_view[2])
+
+    end
 
     return lut
 end
