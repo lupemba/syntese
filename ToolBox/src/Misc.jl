@@ -6,9 +6,19 @@ ndimage = pyimport("scipy.ndimage");
 
 
 """
+    resample(view_in, data, index1_out, index2_out,order=1)
+
+    Interpolate 2d complex data to points given by index1_out, index2_out.
+
+    # Arguments
+    - `view::Array{UnitRange,1}`: the view of the data
+    - `data::Array{Complex,2}: The complex data
+    - `index1_out::Array{Float,N}`: Array with the first index of output points
+    - `index2_out::Array{Float,N}`: Array with the second index of output points
+    - `order::Int`: order of the polynomial interpolation.
 """
-function resample(view_in, data, line_out, sample_out,order=1)
-    index = [line_out.-view_in[1].start, sample_out.-view_in[2].start]
+function resample(view_in, data, index1_out, index2_out,order=1)
+    index = [index1_out.-view_in[1].start, index2_out.-view_in[2].start]
     data_real = ndimage.map_coordinates(real.(data), index, order=order, mode="nearest")
     data_imag = ndimage.map_coordinates(imag.(data), index, order=order, mode="nearest")
     return data_real .+ data_imag.*im
