@@ -2,7 +2,17 @@ module Misc
 
 using PyCall
 scipy_interp = pyimport("scipy.interpolate");
+ndimage = pyimport("scipy.ndimage");
 
+
+"""
+"""
+function resample(view_in, data, line_out, sample_out,order=1)
+    index = [line_out.-view_in[1].start, sample_out.-view_in[2].start]
+    data_real = ndimage.map_coordinates(real.(data), index, order=order, mode="nearest")
+    data_imag = ndimage.map_coordinates(imag.(data), index, order=order, mode="nearest")
+    return data_real .+ data_imag.*im
+end
 
 """
     interp(x_point, y_point, value, x, y,method="linear")
