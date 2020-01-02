@@ -217,15 +217,15 @@ end
 
     # Arguments
     - `path::String`: path to precise orbits file
-    - `lat_lon_window`: Window that specifise what subset to load ((min_lat,max_lat)(min_lon,max_lon))
-    - `nan_fill::float`: Value to replace NaN values
-    - `padding`: [lat_padding,lon_padding]. Loads the extra padding (in pixel) to the image
-    - `nan_value::float`: Value to be replaced with nan_fill
+    - `lat_lon_window::((Float64, Float64)(Float64, Float64))`: Window that specify what subset to load ((min_lat,max_lat)(min_lon,max_lon))
+    - `nan_fill::Float64`: Value to replace NaN values
+    - `padding::[Int, Int]`: [lat_padding,lon_padding] - loads the extra padding (in pixels) to the image
+    - `nan_value::Float64`: Value to be replaced with nan_fill
 
     # Output
-    - `lat:: Array{float}(k)`: Lattitudes.
-    - `lon::Array{float}(l)`: Longitudes.
-    - `dem_data::Array{float}(kxl)`: Heights.
+    - `lat:: Array{Float64}(k)`: Lattitudes.
+    - `lon::Array{Float64}(l)`: Longitudes.
+    - `dem_data::Array{Float64}(kxl)`: Heights.
 """
 function dem(path, lat_lon_window; nan_fill= NaN, padding=[0,0],nan_value =-32768)
 
