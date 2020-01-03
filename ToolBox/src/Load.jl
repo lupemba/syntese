@@ -54,8 +54,8 @@ function slc_meta(path, satellite="s1")
     t_start = meta_dict["product"]["adsHeader"]["startTime"]
     t_stop = meta_dict["product"]["adsHeader"]["stopTime" ]
     s1_meta["t_0"] = _str2date(t_start)
-    s1_meta["t_start"] = _str_date2float(t_start,s1_meta["t_0"])
-    s1_meta["t_stop"] = _str_date2float(t_stop,s1_meta["t_0"]);
+    s1_meta["t_start"] = _str_date2float(t_start, s1_meta["t_0"])
+    s1_meta["t_stop"] = _str_date2float(t_stop, s1_meta["t_0"]);
 
     # get general info
     s1_meta["mission_id"] = meta_dict["product"]["adsHeader"]["missionId"]
@@ -74,7 +74,7 @@ function slc_meta(path, satellite="s1")
     s1_meta["azimuth_steering_rate"] = parse(Float64, meta_dict["product"]["generalAnnotation"]["productInformation"]["azimuthSteeringRate"])
     
 
-    # get infor for "imageInformation"
+    # get info for "imageInformation"
     img_info = meta_dict["product"]["imageAnnotation"]["imageInformation"];
     s1_meta["range_pixel_spacing"] = parse(Float64,img_info["rangePixelSpacing"])
     s1_meta["azimuth_frequency"] = parse(Float64,img_info["azimuthFrequency"])
@@ -83,46 +83,69 @@ function slc_meta(path, satellite="s1")
     s1_meta["azimuth_pixel_spacing"] = parse(Float64,img_info["azimuthPixelSpacing"])
     s1_meta["number_of_samples"] = parse(Int, img_info["numberOfSamples"])
     
-    # Get infor about burst
+    # Get info about burst
     swath_timing = meta_dict["product"]["swathTiming"]
     s1_meta["lines_per_burst"] =  parse(Int,swath_timing["linesPerBurst"])
     s1_meta["samples_per_burst"] =  parse(Int,swath_timing["samplesPerBurst"])
     s1_meta["burst_count"] = parse(Int,swath_timing["burstList"][:count])
     
     s1_meta["azimuth_time_interval"] = parse(Float64, meta_dict["product"]["imageAnnotation"]["imageInformation"]["azimuthTimeInterval"])
-
     
     # Get info for each burst
     burst = swath_timing["burstList"]["burst"]
     burst_meta["burst_times"] = [_str_date2float(elem["azimuthTime"],s1_meta["t_0"]) for elem in burst]
     burst_meta["fist_valid_pixel"] = [parse.(Int,split(elem["firstValidSample"][""])) for elem in burst]
     burst_meta["last_valid_pixel"] = [parse.(Int,split(elem["lastValidSample"][""])) for elem in burst];
+    burst_mid_times = burst_meta["burst_times"] .+ s1_meta["lines_per_burst"]/(2*s1_meta["azimuth_frequency"])
     
-    # NOTE: undre mig lidt over burst count er 10 men data_dc_polynomial løber op til 11
-    data_dc_polynomial = Array{Float64, 2}(undef, s1_meta["burst_count"]+1, 3)
-    data_dc_t0 = Array{Float64, 1}(undef, s1_meta["burst_count"]+1)
-    for i in 1:s1_meta["burst_count"]+1
-        data_dc_polynomial[i, :] = [parse(Float64, param) for param in split(meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"][i]["dataDcPolynomial"][""])]
-        data_dc_t0[i] = parse(Float64, meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"][i]["t0"])
+    # A ordered dictionary of all the Dopple Centroid polynomial estimates
+    burst_meta["dc_estimate_list"] = meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"]
+    
+    # select the polynomials and t0's closest to mid burst time
+    data_dc_polynomial = Array{Float64, 2}(undef, s1_meta["burst_count"], 3)
+    data_dc_t0 = Array{Float64, 1}(undef, s1_meta["burst_count"])
+    dc_time_diff = Array{Float64, 1}(undef, length(burst_meta["dc_estimate_list"]))
+    for i in 1:s1_meta["burst_count"]
+        for j in 1:length(burst_meta["dc_estimate_list"])
+            dc_time = _str_date2float(burst_meta["dc_estimate_list"][j]["azimuthTime"], s1_meta["t_0"])
+            dc_time_diff[j] = abs(dc_time - burst_mid_times[i])
+        end
+        best_dc_index = argmin(dc_time_diff)
+        data_dc_polynomial[i, :] = [parse(Float64, param) for param in split(meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"][best_dc_index]["dataDcPolynomial"][""])]
+        data_dc_t0[i] = parse(Float64, meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"][best_dc_index]["t0"])
     end
     burst_meta["data_dc_polynomial"] = data_dc_polynomial
     burst_meta["data_dc_t0"] = data_dc_t0
     
-    azimuth_fm_rate_polynomial = Array{Float64, 2}(undef, s1_meta["burst_count"]+1, 3)
-    azimuth_fm_rate_t0 = Array{Float64, 1}(undef, s1_meta["burst_count"]+1)
-    for i in 1:s1_meta["burst_count"]+1
-        azimuth_fm_rate_polynomial[i, :] = [parse(Float64, param) for param in split(meta_dict["product"]["generalAnnotation"]["azimuthFmRateList"]["azimuthFmRate"][i]["azimuthFmRatePolynomial"][""])]
-        azimuth_fm_rate_t0[i] = parse(Float64, meta_dict["product"]["dopplerCentroid"]["dcEstimateList"]["dcEstimate"][i]["t0"])
+    # A ordered dictionary of all the azimuth fm rate polynomials
+    burst_meta["azimuth_fm_rate_list"] = meta_dict["product"]["generalAnnotation"]["azimuthFmRateList"]["azimuthFmRate"]
+    
+    # select the polynomials and t0's closest to mid burst time
+    azimuth_fm_rate_polynomial = Array{Float64, 2}(undef, s1_meta["burst_count"], 3)
+    azimuth_fm_rate_t0 = Array{Float64, 1}(undef, s1_meta["burst_count"])
+    fm_time_diff = Array{Float64, 1}(undef, length(burst_meta["azimuth_fm_rate_list"]))
+    for i in 1:s1_meta["burst_count"]
+        for j in 1:length(burst_meta["azimuth_fm_rate_list"])
+            fm_time = Load._str_date2float(burst_meta["azimuth_fm_rate_list"][j]["azimuthTime"], s1_meta["t_0"])
+            fm_time_diff[i] = abs(fm_time - burst_mid_times[i])
+        end
+        best_dc_index = argmin(fm_time_diff)
+    
+        azimuth_fm_rate_polynomial[i, :] = [parse(Float64, param) for param in split(meta_dict["product"]["generalAnnotation"]["azimuthFmRateList"]["azimuthFmRate"][best_dc_index]["azimuthFmRatePolynomial"][""])]
+        azimuth_fm_rate_t0[i] = parse(Float64, meta_dict["product"]["generalAnnotation"]["azimuthFmRateList"]["azimuthFmRate"][best_dc_index]["t0"])
     end
+            
     burst_meta["azimuth_fm_rate_polynomial"] = azimuth_fm_rate_polynomial
     burst_meta["azimuth_fm_rate_t0"] = azimuth_fm_rate_t0
     
+            
+            
     # create a array with info about what line the first line in each burst corrosponds to in a mosaic
     first_line_mosaic = 1 .+(burst_meta["burst_times"] .- s1_meta["t_start"]) .*s1_meta["azimuth_frequency"]
     #println("test",first_line_mosaic) = test[1.0, 1343.0, 2684.0, 4027.0, 5368.0, 6710.0, 8053.0, 9393.0, 10735.0, 12078.0]
     burst_meta["first_line_mosaic"] = round.(Int,first_line_mosaic)
 
-
+            
     # Get GeoLocations
     geolocation_list = meta_dict["product"]["geolocationGrid"]["geolocationGridPointList"]["geolocationGridPoint"]
     # Add one to line and sample because the annotation is zero index based.
@@ -199,7 +222,7 @@ end
     # Output
     - `dt::Float64`: time relative to t_0 in seconds.
 """
-function _str_date2float(time,t_0)
+function _str_date2float(time, t_0)
     # find time diff with date time down to min
     t_i = _str2date(time)
     dt_i = Dates.Second(t_i-t_0).value
