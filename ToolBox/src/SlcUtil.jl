@@ -98,7 +98,8 @@ function phase_ramp(lines, samples, burst_number, meta, v_mid)
     tau_mid = tau_0 + number_of_samples/2 * Delta_tau_s
 
     eta_ref = eta_c .- (- f_etac(tau_mid, dc_coef, dc_tau0)/k_a(tau_mid, fm_coef, fm_tau0)); # Reference time, Eqn. 6
-    eta = -lines_per_burst/2*Delta_t_s .+ (lines .- 1 .- lines_per_burst*(burst_number-1)) .* Delta_t_s
+    line_in_burst = lines .- lines_per_burst*(burst_number-1)
+    eta = -lines_per_burst/2*Delta_t_s .+ (line_in_burst .- 1/2 ) .* Delta_t_s
 
     # Compute the phase ramp added the modulation term
     ramp = pi * k_t .* (eta .- eta_ref).^2 .+ 2 * pi .* f_etac(tau, dc_coef, dc_tau0) .* (eta .- eta_ref); # Eqn. 14
