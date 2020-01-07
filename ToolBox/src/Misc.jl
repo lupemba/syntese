@@ -5,6 +5,11 @@ scipy_interp = pyimport("scipy.interpolate");
 ndimage = pyimport("scipy.ndimage");
 
 
+function interp_grid(index1,index2,data_2d,index1_out, index2_out)
+    F = scipy_interp.interp2d(collect(index2),collect(index1),data_2d)
+    return F(collect(index2_out),collect(index1_out))
+end
+
 """
     resample(view_in, data, index1_out, index2_out,order=1)
 

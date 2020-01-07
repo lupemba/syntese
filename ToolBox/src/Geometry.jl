@@ -2,6 +2,10 @@ module Geometry
 
 include("Misc.jl")
 import .Misc
+include("SlcUtil.jl")
+import .SlcUtil
+include("Load.jl")
+import .Load
 import Polynomials
 using LinearAlgebra
 using Statistics
@@ -9,7 +13,117 @@ using Dates
 using PyCall
 scipy_interp = pyimport("scipy.interpolate");
 
-export to_lat_lon, to_line_sample,look_up_table, mid_burst_speed
+export to_lat_lon, to_line_sample,look_up_table, mid_burst_speed,coregister_slave
+
+
+function coregister_slave(master_view,slave_data_path,dem,meta,precise_orbit,stride=(2,8))
+    c = 299792458
+    lines_per_burst = meta[1]["lines_per_burst"];
+    range_pixel_spacing =  c/(2*meta[1]["range_sampling_rate"])
+    lambda =  c/meta[1]["radar_frequency"]
+    v_mid = mid_burst_speed(precise_orbit[2], meta[2]);
+
+    start_burst = floor(Int,(master_view[1].start-1)/lines_per_burst+1)
+    end_burst = floor(Int,(master_view[1].stop-1)/lines_per_burst+1)
+
+    # look_up_table
+    mosaic_view = SlcUtil.mosaic_view(meta[1],master_view)
+    lut = look_up_table(mosaic_view,meta,precise_orbit,dem,stride=(2,8))
+
+    # get master line and sample
+    master_line, master_sample = Misc.flatten(mosaic_view...)
+
+    # interpolate slave line and sample
+    slave_line = Misc.interp_grid(lut["master_line"] ,lut["master_sample"],
+    reshape(lut["slave_line"],(length(lut["master_line"]),length(lut["master_sample"])))
+    ,mosaic_view[1], mosaic_view[2])
+    slave_sample = Misc.interp_grid(lut["master_line"] ,lut["master_sample"],
+        reshape(lut["slave_sample"],(length(lut["master_line"]),length(lut["master_sample"])))
+        ,mosaic_view[1], mosaic_view[2]);
+
+    slave_line = reshape(slave_line,:)
+    slave_sample= reshape(slave_sample,:);
+
+    ## check if it is in slave image
+    max_slave_view = SlcUtil.original_view(meta[2])
+    if max_slave_view[1].start > minimum(slave_line)
+        println("Warning: start line not in slave image")
+    end
+
+    if max_slave_view[1].stop < maximum(slave_line)
+        println("Warning: end line not in slave image")
+    end
+
+    if max_slave_view[2].start > minimum(slave_sample)
+        println("Warning: start sample not in slave image")
+    end
+
+    if max_slave_view[2].stop < maximum(slave_sample)
+        println("Warning: end sample not in slave image")
+    end
+
+
+    # load and resample one burst at a time
+    i = 0
+    coreg_slave = 0
+    flat_inferogram = 0
+    for n in start_burst:end_burst
+
+        start_line = lines_per_burst * (n-1)+1
+        end_line = lines_per_burst * n
+
+        ## offset cused by overlap between burts
+        over_lap_master = lines_per_burst*(n-1)+1 - meta[1]["burst_meta"]["first_line_mosaic"][n]
+        over_lap_slave = lines_per_burst*(n-1)+1 - meta[2]["burst_meta"]["first_line_mosaic"][n]
+
+        # finds the lines in the burst
+        in_burst = (start_line-over_lap_master) .<= master_line .<= (end_line-over_lap_master)
+
+        # get lines
+        master_line_n = master_line[in_burst] .+ over_lap_master
+        slave_line_n = slave_line[in_burst] .+ over_lap_slave
+
+        # get samples
+        master_sample_n = master_sample[in_burst]
+        slave_sample_n = slave_sample[in_burst]
+
+
+        # load data
+        slave_view = round(Int,minimum(slave_line_n)): round(Int,maximum(slave_line_n)),
+                    round(Int,minimum(slave_sample_n)): round(Int,maximum(slave_sample_n))
+        slave_data = Load.slc_data(slave_data_path, slave_view);
+
+        # deramp
+        phi = SlcUtil.phase_ramp(Misc.flatten(slave_view...)..., n, meta[2], v_mid[n]);
+        slave_data = slave_data .* reshape(exp.(-phi .* im),size(slave_data));
+
+        # dimension of resample
+        dim = (convert(Int,length(master_line_n)/length(master_view[2])),length(master_view[2]))
+
+        #resample
+        slave_data = Misc.resample(slave_view,slave_data,slave_line_n,slave_sample_n)
+        slave_data = reshape(slave_data, dim);
+
+        # reramp
+        phi = SlcUtil.phase_ramp(slave_line_n, slave_sample_n, n, meta[2], v_mid[n])
+        slave_data = slave_data .* reshape(exp.(phi .* im),dim);
+
+        # flat_inferogram
+        flat = exp.(4*pi.*(master_sample_n.-slave_sample_n).*range_pixel_spacing./lambda.*im)
+        flat = reshape(flat,dim);
+
+        # append new results
+        if n == start_burst
+            coreg_slave = slave_data
+            flat_inferogram = flat
+        else
+            coreg_slave = vcat(coreg_slave,slave_data)
+            flat_inferogram = vcat(flat_inferogram,flat)
+        end
+    end
+
+    return coreg_slave, flat_inferogram, lut
+end
 
 
 """
@@ -67,57 +181,39 @@ function look_up_table(master_view,meta,precise_orbit,dem;stride=(1,1))
     lut  = Dict{String,Any}()
 
     if stride==(1,1)
-       master_line_lut,master_sample_lut = Misc.flatten(master_view[1],master_view[2])
+       line = collect(master_view[1])
+       sample = collect(master_view[2])
    else
        # Compute the grid with strides.
        line = collect(master_view[1].start:stride[1]:master_view[1].stop)
        line[end] = master_view[1].stop
        sample = collect(master_view[2].start:stride[2]:master_view[2].stop)
        sample[end] = master_view[2].stop
-
-       master_line_lut,master_sample_lut = Misc.flatten(line,sample)
    end
 
     # Get master line and sample
-    lut["master_line"] = master_line_lut
-    lut["master_sample"] = master_sample_lut
+    lut["master_line"] = line
+    lut["master_sample"] = sample
+
+    master_line,master_sample = Misc.flatten(line,sample)
 
     # Get heights
     lat_dem,lon_dem, heights = Misc.flatten(dem...)
-    dem = 0 # clear memory
     line_sample_dem = to_line_sample(hcat(lat_dem,lon_dem),heights,precise_orbit[1]...,meta[1])
     lut["heights"] = Misc.interp(line_sample_dem[:,1], line_sample_dem[:,2], heights,
-                            lut["master_line"], lut["master_sample"])
-    # clear memory
-    lat_dem = 0
-    lon_dem = 0
-    heights = 0
-    line_sample_dem = 0
+                                master_line, master_sample)
 
     # Get latitude and longitude
-    lat_lon = to_lat_lon(hcat(lut["master_line"],lut["master_sample"]),lut["heights"],
+    lat_lon = to_lat_lon(hcat(master_line,master_sample),lut["heights"],
     precise_orbit[1]...,meta[1])
     lut["latitude"] = lat_lon[:,1]
     lut["longitude"] = lat_lon[:,2]
-    lat_lon = 0 # clear memory
 
     # Get slave line and sample
     line_sample = to_line_sample(hcat(lut["latitude"],lut["longitude"]),lut["heights"],
     precise_orbit[2]...,meta[2]);
     lut["slave_line"] = line_sample[:,1]
     lut["slave_sample"] = line_sample[:,2]
-
-
-    if !(stride==(1,1))
-        # Interpolate the results to all pixels in master_view
-        for (key,elem) in lut
-            if !(key == "master_sample" || key == "master_line")
-                F = scipy_interp.interp2d(sample,line, reshape(lut[key],(length(line),length(sample))))
-                lut[key] = reshape(F(collect(master_view[2]),collect(master_view[1])),:)
-            end
-        end
-        lut["master_line"],lut["master_sample"] = Misc.flatten(master_view[1],master_view[2])
-    end
 
     return lut
 end

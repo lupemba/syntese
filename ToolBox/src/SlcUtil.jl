@@ -1,12 +1,14 @@
 module SlcUtil
 import Statistics
 import Images
+import Colors
 
 using PyCall
 scipy_interp = pyimport("scipy.interpolate");
 
 
-export SlcRaw, show_img, original_view, footprint, get_burst_corners, deramp
+export SlcRaw, show_img, original_view, footprint, phase_ramp
+
 
 """
     get_burst_corners(burst_number::Int, meta::Dict)
@@ -284,6 +286,29 @@ function mosaic_view(img::SlcRaw)
 end
 
 
+"""
+    plot_phase(img)
+
+    Plot a color image of the phase of img
+    - `img::Array{Complex}`:
+"""
+function plot_phase(img)
+    phase = (angle.(img) .+pi)./(2*pi)
+
+    return Colors.RGB{Float32}.(1 .-phase.^2,4 .*(phase .-  phase.^2),phase.^2)
+end
+
+
+"""
+    _phase_colorbar(n=17)
+
+    Plot a color bar that fits  plot_phase(img)
+"""
+function _phase_colorbar(n=17)
+    phase = 0:0.003:1
+    display(Colors.RGB{Float32}.(1 .-phase.^2,4 .*(phase .-  phase.^2),phase.^2))
+    println(" -π"*" "^n,"-π/2"*" "^n,"0"*" "^n,"π/2"*" "^n,"π")
+end
 
 
 
