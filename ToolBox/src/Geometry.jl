@@ -16,15 +16,37 @@ scipy_interp = pyimport("scipy.interpolate");
 export to_lat_lon, to_line_sample,look_up_table, mid_burst_speed,coregister_slave
 
 
-function coregister_slave(master_view,slave_data_path,dem,meta,precise_orbit,stride=(2,8))
+using PyCall
+scipy_interp = pyimport("scipy.interpolate");
+
+"""
+    coregister_slave2(master_view,slave_data_path,meta,precise_orbit,dem,stride=(2,8))
+
+Loads the coregistred and resample slave_data that fits with master_view
+
+# Arguments
+- `master_view::Array{Int,1}`: The lines of interest.
+- `slave_data_path::string`: The samples of interest.
+- `meta::Array{Dict}(2)`: - (master_meta, slave_meta)
+- `precise_orbit`: - (master_precise_orbit, slave_precise_orbit) as returned by Load.precise_orbit()
+- `time_state_vectors::Array{float}(L)`: time of each orbit state relative to t_0 in seconds.
+- `dem`: (lat, lon, dem_data) as returned by Load.dem()
+- `stride::Tuple(2)`: The stride in line and sample.
+
+# Output
+- coreg_slave::Array{Complex{Float64},2}: The resampled Slave data
+- flat_inferogram::Array{Complex{Float64},2}: The inferogram caused by the flat earth and the DEM
+- geo_ref_table::Dict: Dictionary with latitude, longitude, and hights for a gird of points in the master image
+
+"""
+function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,stride=(2,8))
+    # get some coficents
     c = 299792458
-    lines_per_burst = meta[1]["lines_per_burst"];
     range_pixel_spacing =  c/(2*meta[1]["range_sampling_rate"])
     lambda =  c/meta[1]["radar_frequency"]
-    v_mid = mid_burst_speed(precise_orbit[2], meta[2]);
 
-    start_burst = floor(Int,(master_view[1].start-1)/lines_per_burst+1)
-    end_burst = floor(Int,(master_view[1].stop-1)/lines_per_burst+1)
+    # Get the midburst speed
+    v_mid = mid_burst_speed(precise_orbit[2], meta[2]);
 
     # look_up_table
     mosaic_view = SlcUtil.mosaic_view(meta[1],master_view)
@@ -44,40 +66,75 @@ function coregister_slave(master_view,slave_data_path,dem,meta,precise_orbit,str
     slave_line = reshape(slave_line,:)
     slave_sample= reshape(slave_sample,:);
 
+    # master bursts
+    master_start_burst = ceil(Int,(master_view[1].start-1)/meta[1]["lines_per_burst"])
+    master_end_burst = ceil(Int,(master_view[1].stop-1)/meta[1]["lines_per_burst"])
+
+    # find the slave bursts
+    slave_start_line = minimum(slave_line)
+    slave_start_burst = sum([slave_start_line > elem ? 1 : 0 for elem in meta[2]["burst_meta"]["first_line_mosaic"]])
+
+    ## Get the number of lines in the first selected burst
+    lines_in_first_burst_master = master_start_burst*meta[1]["lines_per_burst"] - master_view[1].start
+    lines_in_first_burst_slave = meta[2]["burst_meta"]["first_line_mosaic"][slave_start_burst]+meta[2]["lines_per_burst"] - slave_start_line
+
+    ## Check if the number of lines are approximately the same
+    if lines_in_first_burst_slave > lines_in_first_burst_master + 100
+        # the number of lines are not the same. The slave burst before should be included
+        slave_start_burst = slave_start_burst -1
+        lines_in_first_burst_slave = slave_start_burst*meta[2]["lines_per_burst"] - slave_start_line
+    end
+
+    # compute the offset between the burst number in slave and master
+    delta_burst = slave_start_burst - master_start_burst
+
     ## check if it is in slave image
     max_slave_view = SlcUtil.original_view(meta[2])
-    if max_slave_view[1].start > minimum(slave_line)
+    slave_end_burst = master_end_burst + delta_burst
+
+    if slave_start_burst == 0
         println("Warning: start line not in slave image")
     end
 
-    if max_slave_view[1].stop < maximum(slave_line)
+    if slave_end_burst > meta[2]["burst_count"]
         println("Warning: end line not in slave image")
     end
 
-    if max_slave_view[2].start > minimum(slave_sample)
+    if minimum(slave_sample) < max_slave_view[2].start
         println("Warning: start sample not in slave image")
     end
 
-    if max_slave_view[2].stop < maximum(slave_sample)
+    if maximum(slave_sample) > max_slave_view[1].stop
         println("Warning: end sample not in slave image")
     end
 
+    # Initialize arrays for the results
+    coreg_slave = Array{Complex{Float64}}(undef,length.(master_view)...)
+    flat_inferogram = Array{Complex{Float64}}(undef,length.(master_view)...)
 
     # load and resample one burst at a time
-    i = 0
-    coreg_slave = 0
-    flat_inferogram = 0
-    for n in start_burst:end_burst
+    for n_master in master_start_burst:master_end_burst
 
-        start_line = lines_per_burst * (n-1)+1
-        end_line = lines_per_burst * n
+        n_slave =  n_master + delta_burst
+
+        start_line_master = meta[1]["lines_per_burst"] * (n_master-1)+1
+        end_line_master = meta[1]["lines_per_burst"] * n_master
 
         ## offset cused by overlap between burts
-        over_lap_master = lines_per_burst*(n-1)+1 - meta[1]["burst_meta"]["first_line_mosaic"][n]
-        over_lap_slave = lines_per_burst*(n-1)+1 - meta[2]["burst_meta"]["first_line_mosaic"][n]
+        over_lap_master = meta[1]["lines_per_burst"]*(n_master-1)+1 - meta[1]["burst_meta"]["first_line_mosaic"][n_master]
+        over_lap_slave = meta[2]["lines_per_burst"]*(n_slave-1)+1 - meta[2]["burst_meta"]["first_line_mosaic"][n_slave]
+
+        if n_master == master_start_burst
+            start_line_master = master_view[1].start
+        end
+
+        if n_master == master_end_burst
+            end_line_master = master_view[1].stop
+        end
 
         # finds the lines in the burst
-        in_burst = (start_line-over_lap_master) .<= master_line .<= (end_line-over_lap_master)
+        in_burst = (start_line_master-over_lap_master) .<= master_line .<= (end_line_master-over_lap_master)
+
 
         # get lines
         master_line_n = master_line[in_burst] .+ over_lap_master
@@ -87,42 +144,41 @@ function coregister_slave(master_view,slave_data_path,dem,meta,precise_orbit,str
         master_sample_n = master_sample[in_burst]
         slave_sample_n = slave_sample[in_burst]
 
-
         # load data
-        slave_view = round(Int,minimum(slave_line_n)): round(Int,maximum(slave_line_n)),
+        slave_view_n = round(Int,minimum(slave_line_n)): round(Int,maximum(slave_line_n)),
                     round(Int,minimum(slave_sample_n)): round(Int,maximum(slave_sample_n))
-        slave_data = Load.slc_data(slave_data_path, slave_view);
+        slave_data = Load.slc_data(slave_data_path, slave_view_n);
 
         # deramp
-        phi = SlcUtil.phase_ramp(Misc.flatten(slave_view...)..., n, meta[2], v_mid[n]);
+        phi = SlcUtil.phase_ramp(Misc.flatten(slave_view_n...)..., n_slave, meta[2], v_mid[n_slave]);
         slave_data = slave_data .* reshape(exp.(-phi .* im),size(slave_data));
 
         # dimension of resample
         dim = (convert(Int,length(master_line_n)/length(master_view[2])),length(master_view[2]))
 
         #resample
-        slave_data = Misc.resample(slave_view,slave_data,slave_line_n,slave_sample_n)
+        slave_data = Misc.resample(slave_view_n,slave_data,slave_line_n,slave_sample_n)
         slave_data = reshape(slave_data, dim);
 
         # reramp
-        phi = SlcUtil.phase_ramp(slave_line_n, slave_sample_n, n, meta[2], v_mid[n])
+        phi = SlcUtil.phase_ramp(slave_line_n, slave_sample_n, n_slave, meta[2], v_mid[n_slave])
         slave_data = slave_data .* reshape(exp.(phi .* im),dim);
 
         # flat_inferogram
         flat = exp.(4*pi.*(master_sample_n.-slave_sample_n).*range_pixel_spacing./lambda.*im)
         flat = reshape(flat,dim);
 
-        # append new results
-        if n == start_burst
-            coreg_slave = slave_data
-            flat_inferogram = flat
-        else
-            coreg_slave = vcat(coreg_slave,slave_data)
-            flat_inferogram = vcat(flat_inferogram,flat)
-        end
+        # store results
+        coreg_slave[(start_line_master:end_line_master) .- (master_view[1].start-1),:] .= slave_data
+        flat_inferogram[(start_line_master:end_line_master) .- (master_view[1].start-1),:] .= flat
     end
 
-    return coreg_slave, flat_inferogram, lut
+    # remove the slave goemtry and return the dict as geo_ref_table
+    delete!(lut, "slave_sample")
+    delete!(lut, "slave_line")
+    geo_ref_table = lut
+
+    return coreg_slave, flat_inferogram, geo_ref_table
 end
 
 
