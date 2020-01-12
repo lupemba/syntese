@@ -284,7 +284,7 @@ end
     # Arguments
     - `line_sample::Array{float}(Nx2)`: - Array of points line,sample
     - `height::Array{float}(N)`: - Array with heights (meters) of points
-    - `state_vectors::Array{float}(Lx6)`: Array with respectvely X,Y,Z,V_x,V_y,V_z observationer.
+    - `state_vectors::Array{float}(Lx6)`: Array with respectively X,Y,Z,V_x,V_y,V_z observations.
     - `time_state_vectors::Array{float}(L)`: time of each orbit state relative to t_0 in seconds.
     - `meta::Dict`: Dict with relevant meta info. See Load.slc_meta(path)
     # Output

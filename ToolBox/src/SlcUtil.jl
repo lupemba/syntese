@@ -41,26 +41,26 @@ end
 
 
 """
-    deramp(burst_number::Int, meta::Dict, precise_orbit:Dict)
+    phase_ramp(linesArray{Int,1}, samples::Array{Int,1}, burst_number::Int, meta::Dict, precise_orbit:Dict)
 
 Computes the phase ramp (phi) for the given burst number for input lines and samples.
 
 # Arguments
-- `line::Array{Int,1}`: The lines of interest.
-- `sample::Array{Int,1}`: The samples of interest.
+- `lines::Array{Int,1}`: The (Nx1)-lines of interest. Can also be a view i.e. UnitRange{Int64}
+- `samples::Array{Int,1}`: The (Mx1)-samples of interest. Can also be a view i.e. UnitRange{Int64}
 - `burst_number::Int`: The number of the burst of interest.
 - `meta::Dict`:  Meta information from the Sentinel-1 SLC image
 - `v_mid:Dict`: Satellite speed at mid burst time
 
 # Output
-- ramp::Array{Float64,1}: Array with deramped phase for line and sample
+- ramp::Array{Float64,1}: Array with phase ramp for chosen lines and samples in list format
 
 # Examples:
 ```jldoctest
 julia> meta = Load.slc_meta(path_meta_1);
 julia> precise_orbit = Load.precise_orbit(path_pod_1, meta["t_0"]);
 julia> burst_number = 1
-julia> phase = deramp(burst_number, meta, precise_orbit);
+julia> ramp = phase_ramp(750:900, 1037:2000, burst_number, meta, precise_orbit);
 1525×23567 Array{Float64,1}:
  6.17566e8  6.17565e8  6.17564e8  …  5.89003e8  5.89001e8  5.89e8
 ```
@@ -84,7 +84,7 @@ function phase_ramp(lines, samples, burst_number, meta, v_mid)
     tau_0 = meta["slant_range_time"]
     v_s = v_mid
 
-    # Not sure about tau0 in tau_mid
+    # Temporary functions, allows different x=tau inputs
     k_a(x, fm_param, x0) = fm_param[1] .+ fm_param[2].*(x .- x0) .+ fm_param[3].*(x .- x0).^2 # Doppler FM rate, Eqn. 11
     f_etac(x, dc_param, x0) = dc_param[1] .+ dc_param[2].*(x .- x0) .+ dc_param[3].*(x .- x0).^2; # Doppler centroid freq Eqn. 13
 
