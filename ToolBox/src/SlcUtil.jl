@@ -10,6 +10,79 @@ scipy_interp = pyimport("scipy.interpolate");
 export SlcRaw, show_img, original_view, footprint, phase_ramp
 
 
+
+function mosaic(data,view_data,meta)
+# Find the burst in the image
+start_burst = ceil(Int,(view_data[1].start)/meta["lines_per_burst"])
+end_burst = ceil(Int,(view_data[1].stop-1)/meta["lines_per_burst"])
+
+#find the overlaps
+overlap = meta["lines_per_burst"].+meta["burst_meta"]["first_line_mosaic"][1:end-1] .- meta["burst_meta"]["first_line_mosaic"][2:end]
+d_ovelap_m = floor.(Int,overlap .*0.5)
+d_ovelap_p = overlap .- d_ovelap_m
+
+# Initialise start line
+start_line = 1
+
+# Check if the first burst have enough line to be included
+lines_in_first_burst = 1 + start_burst* meta["lines_per_burst"]-(view_data[1].start)
+view_start_line = meta["burst_meta"]["first_line_mosaic"][start_burst] +(meta["lines_per_burst"]- lines_in_first_burst)
+if lines_in_first_burst <= d_ovelap_m[start_burst]
+    # If not jump to next burst
+    start_burst += 1
+    # update valuse
+    start_line = lines_in_first_burst +1
+    view_start_line = meta["burst_meta"]["first_line_mosaic"][start_burst]
+end
+
+# Check if the end burst have enough line to be included
+lines_in_end_burst = view_data[1].stop - (end_burst-1)* meta["lines_per_burst"]
+if lines_in_end_burst <= d_ovelap_p[end_burst-1]
+    # if not skip the end burst
+    end_burst -= 1
+    lines_in_end_burst =  meta["lines_per_burst"]
+end
+# make end line
+view_end_line = meta["burst_meta"]["first_line_mosaic"][end_burst]+lines_in_end_burst -1
+
+# Check for single burst
+if end_burst == start_burst
+    println("To Be made")
+end
+
+# Make the mosaic view
+mosaic_view = (view_start_line:view_end_line,view_data[2])
+
+# initialize array for results
+mosaic_data = Array{eltype(data)}(undef,length.(mosaic_view)...)
+
+# Find initilize mosaic with the first burst exept a bit of the end part
+end_line = meta["lines_per_burst"]*start_burst-d_ovelap_m[start_burst]-view_data[1].start
+mosaic_data[1:(end_line-start_line)+1,:] .= data[start_line:end_line,:];
+
+# update
+line_temp = (end_line-start_line)+2
+
+# loop throuth the middle burst and cut out the section needed
+for k in (start_burst+1):(end_burst-1)
+    start_line = 1+d_ovelap_p[k-1]+(k-1)*meta["lines_per_burst"]-view_data[1].start
+    end_line = meta["lines_per_burst"]*k-d_ovelap_m[k]-view_data[1].start
+    # add the result to mosaic
+    mosaic_data[line_temp:line_temp + (end_line-start_line),:] .=  data[start_line:end_line,:]
+    line_temp  = line_temp +(end_line-start_line)+1
+end
+
+# handle the last burst
+start_line = 1+d_ovelap_p[end_burst-1]+(end_burst-1)*meta["lines_per_burst"]-view_data[1].start
+end_line = (end_burst-1)*meta["lines_per_burst"]+lines_in_end_burst-(view_data[1].start-1)
+mosaic_data[line_temp:line_temp+(end_line-start_line),:] .=  data[start_line:end_line,:];
+
+return mosaic_data,mosaic_view
+end
+
+
+
+
 """
     get_burst_corners(burst_number::Int, meta::Dict)
 

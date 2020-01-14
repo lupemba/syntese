@@ -67,7 +67,7 @@ function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,str
     slave_sample= reshape(slave_sample,:);
 
     # master bursts
-    master_start_burst = ceil(Int,(master_view[1].start-1)/meta[1]["lines_per_burst"])
+    master_start_burst = ceil(Int,(master_view[1].start)/meta[1]["lines_per_burst"])
     master_end_burst = ceil(Int,(master_view[1].stop-1)/meta[1]["lines_per_burst"])
 
     # find the slave bursts
