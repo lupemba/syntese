@@ -659,11 +659,16 @@ end
 """
     ellipsoid_intersect(x_sat,line_of_sight,semi_major_axis=6378137.,flattening=1/298.257223563)
 
+    Computes the intersection between the satellite line of sight and the earth ellipsoid in ECEF coordinates
+
     # Arguments
-    - `x_sat::Array{float}(3)`: [ X,Y,Z] of the satellite.
+    - `x_sat::Array{float}(3)`: [X,Y,Z] position of the satellite in ECEF coords.
     - `line_of_sight::Float`: Normalised Line of sight
     # Output
-    - `x_0::Array{float}(3)`: intersection between line and elisiod.
+    - `x_0::Array{float}(3)`: intersection between line and ellipsoid.
+
+    # Note:
+    Equations follows I. Cumming and F. Wong (2005) p. 558-559
 """
 function ellipsoid_intersect(x_sat,line_of_sight,semi_major_axis=6378137.,flattening=1/298.257223563)
 
@@ -671,8 +676,11 @@ function ellipsoid_intersect(x_sat,line_of_sight,semi_major_axis=6378137.,flatte
     epsilon = (semi_major_axis/semi_minor_axis)^2  - 1 # second eccentricity squared
     ecc_squared = flattening*(2-flattening)
 
+    # Expressing the intersection between line of sight and ellipsoid as quadratic equation
     F    = (x_sat'*line_of_sight + epsilon*x_sat[3]*line_of_sight[3]) / (1 + epsilon*line_of_sight[3]^2)
     G    = (x_sat'*x_sat - semi_major_axis^2 + epsilon*x_sat[3]^2) / (1 + epsilon*line_of_sight[3]^2)
+
+    # Smallest solution is the intersection. Largest is on the other side of the Earth
     R    = -F - sqrt(F^2 - G)
 
     return x_sat + R.* line_of_sight;
