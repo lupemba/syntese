@@ -22,21 +22,21 @@ scipy_interp = pyimport("scipy.interpolate");
 """
     coregister_slave2(master_view,slave_data_path,meta,precise_orbit,dem,stride=(2,8))
 
-Loads the coregistred and resample slave_data that fits with master_view
+    Loads the coregistred and resample slave_data that fits with master_view
 
-# Arguments
-- `master_view::Array{Int,1}`: The lines of interest.
-- `slave_data_path::string`: The samples of interest.
-- `meta::Array{Dict}(2)`: - (master_meta, slave_meta)
-- `precise_orbit`: - (master_precise_orbit, slave_precise_orbit) as returned by Load.precise_orbit()
-- `time_state_vectors::Array{float}(L)`: time of each orbit state relative to t_0 in seconds.
-- `dem`: (lat, lon, dem_data) as returned by Load.dem()
-- `stride::Tuple(2)`: The stride in line and sample.
+    # Arguments
+    - `master_view::Array{Int,1}`: The lines of interest.
+    - `slave_data_path::string`: The samples of interest.
+    - `meta::Array{Dict}(2)`: - (master_meta, slave_meta)
+    - `precise_orbit`: - (master_precise_orbit, slave_precise_orbit) as returned by Load.precise_orbit()
+    - `time_state_vectors::Array{float}(L)`: time of each orbit state relative to t_0 in seconds.
+    - `dem`: (lat, lon, dem_data) as returned by Load.dem()
+    - `stride::Tuple(2)`: The stride in line and sample.
 
-# Output
-- coreg_slave::Array{Complex{Float64},2}: The resampled Slave data
-- flat_inferogram::Array{Complex{Float64},2}: The inferogram caused by the flat earth and the DEM
-- geo_ref_table::Dict: Dictionary with latitude, longitude, and hights for a gird of points in the master image
+    # Output
+    - coreg_slave::Array{Complex{Float64},2}: The resampled Slave data
+    - flat_inferogram::Array{Complex{Float64},2}: The inferogram caused by the flat earth and the DEM
+    - geo_ref_table::Dict: Dictionary with latitude, longitude, and hights for a gird of points in the master image
 
 """
 function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,stride=(2,8))
@@ -89,7 +89,6 @@ function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,str
     delta_burst = slave_start_burst - master_start_burst
 
     ## check if it is in slave image
-    max_slave_view = SlcUtil.original_view(meta[2])
     slave_end_burst = master_end_burst + delta_burst
 
     if slave_start_burst == 0
@@ -100,11 +99,11 @@ function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,str
         println("Warning: end line not in slave image")
     end
 
-    if minimum(slave_sample) < max_slave_view[2].start
+    if minimum(slave_sample) < 1
         println("Warning: start sample not in slave image")
     end
 
-    if maximum(slave_sample) > max_slave_view[1].stop
+    if maximum(slave_sample) > meta[2]["samples_per_burst"]
         println("Warning: end sample not in slave image")
     end
 
@@ -185,23 +184,23 @@ end
 """
     mid_burst_speed(precise_orbit::Dict, meta::Dict)
 
-Computes the speed (not velocity) of the satellite at all mid burst times.
+    Computes the speed (not velocity) of the satellite at all mid burst times.
 
-# Arguments
-- `precise_orbit:Dict`: Precise orbit data
-- `meta::Dict`:  Meta information from the Sentinel-1 SLC image
+    # Arguments
+    - `precise_orbit:Dict`: Precise orbit data
+    - `meta::Dict`:  Meta information from the Sentinel-1 SLC image
 
-# Output
-- `v_mid::Array{Float64,1}`: N-element Array of speeds at midburst time, where N is the number of bursts.
+    # Output
+    - `v_mid::Array{Float64,1}`: N-element Array of speeds at midburst time, where N is the number of bursts.
 
-# Examples:
-```jldoctest
-julia> meta = Load.slc_meta(path_meta_1);
-julia> precise_orbit = Load.precise_orbit(path_pod_1, meta["t_0"]);
-julia> burst_number = 1
-julia> mid_burst_speed(precise_orbit, meta)[burst_number]
-7588.187233437368
-```
+    # Examples:
+    ```jldoctest
+    julia> meta = Load.slc_meta(path_meta_1);
+    julia> precise_orbit = Load.precise_orbit(path_pod_1, meta["t_0"]);
+    julia> burst_number = 1
+    julia> mid_burst_speed(precise_orbit, meta)[burst_number]
+    7588.187233437368
+    ```
 """
 function mid_burst_speed(precise_orbit, meta)
     t_start = meta["t_start"]
@@ -640,7 +639,7 @@ end
 function approx_line_of_sight(x_sat,v_sat,theta_0)
 
     #ECEF basis coordinates
-    x_hat_ecef = x_sat / sqrt(x_sat'*x_sat) # Towards earth center
+    x_hat_ecef = x_sat / sqrt(x_sat'*x_sat) # away from the earth center
     z_hat_ecef = v_sat / sqrt(v_sat'*v_sat) # flight direction
     y_hat_ecef = cross(z_hat_ecef, x_hat_ecef) # Right handed coordinate system
 

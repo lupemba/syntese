@@ -37,6 +37,11 @@ end
 
 # Check if the end burst have enough line to be included
 lines_in_end_burst = view_data[1].stop - (end_burst-1)* meta["lines_per_burst"]
+
+if end_burst == 1
+    println("To Be made")
+end
+
 if lines_in_end_burst <= d_ovelap_p[end_burst-1]
     # if not skip the end burst
     end_burst -= 1
