@@ -261,7 +261,9 @@ end
     Scales images and show it using Image.Gray()
 """
 function show_img(img,max_quantile=0.98)
-    return Images.Gray.(abs.(img)./Statistics.quantile(reshape(abs.(img), :), max_quantile))
+    img1 = abs.(img)./Statistics.quantile(reshape(abs.(img), :), max_quantile)
+    img1[img1 .> 1] .= 1
+    return Colors.Gray.(img1)
 end
 function show_img(img::SlcRaw,max_quantile=0.98)
     return show_img(img.data,max_quantile)
