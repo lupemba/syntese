@@ -390,4 +390,16 @@ end
 
 
 
+"""
+    plot_water(img,water,max_quantile=0.98)
+
+    Plot image with water in blue.
+"""
+function plot_water(img,water,max_quantile=0.98)
+    gray = abs.(img)./Statistics.quantile(reshape(abs.(img), :), max_quantile)
+    gray[water].= 0
+    return Colors.RGB{Float32}.(gray,gray,gray.+water)
+end
+
+
 end
