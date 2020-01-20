@@ -2,12 +2,45 @@ module SlcUtil
 import Statistics
 import Images
 import Colors
+include("Misc.jl")
+import .Misc
 
 using PyCall
 scipy_interp = pyimport("scipy.interpolate");
 
 
 export SlcRaw, show_img, original_view, footprint, phase_ramp
+
+
+function complex_coherence(master, slave, flat, kernel, view)
+    # Define relevant image signals
+    signal_1 = master .* conj.(slave) .* flat
+    signal_2 = abs2.(master)
+    signal_3 = abs2.(slave)
+    kernel_1 = convert.(eltype(signal_1),kernel)
+    kernel_2 = convert.(eltype(signal_2),kernel)
+    kernel_3 = convert.(eltype(signal_3),kernel)
+
+    # Compute real and imaginary parts seperately
+    interferogram =  Misc.fastconv(signal_1, kernel_1)
+    master_intensity = Misc.fastconv(signal_2, kernel_2)
+    slave_intensity = Misc.fastconv(signal_3, kernel_3)
+
+    # Compute the complex coherence
+    complex_coherence = interferogram ./ (sqrt.(master_intensity .* slave_intensity));
+
+    # Cut away padded areas
+    no_padd = (size(kernel, 1):size(master, 1)-size(kernel, 1)+1, size(kernel, 2):size(master, 2)-size(kernel, 2)+1)
+    complex_coherence = complex_coherence[no_padd...]
+    master_intensity = master_intensity[no_padd...]
+    slave_intensity = slave_intensity[no_padd...]
+
+    # Pixel positions in line, sample
+    lines = (size(kernel, 2)/2:1:size(master,2) - size(kernel, 2)/2) .+ view[2].start
+    samples = (size(kernel, 1)/2:1:size(master,1) - size(kernel, 1)/2) .+ view[1].start
+
+    return complex_coherence, master_intensity, slave_intensity, lines, samples
+end
 
 
 
