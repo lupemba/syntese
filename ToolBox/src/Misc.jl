@@ -77,14 +77,14 @@ end
 """
     grid(index_1,index_2)
 
-    Creates two 2d grids from two arrays.
+    Creates two 2d grids from two 1d arrays.
 """
 function grid(index_1,index_2)
     n_1 = length(index_1)
     n_2 = length(index_2)
 
-    index1_grid =  Array{typeof(index_1[1])}(undef, n_1, n_2)
-    index2_grid =  Array{typeof(index_2[1])}(undef, n_1, n_2)
+    index1_grid =  Array{eltype(index_1)}(undef, n_1, n_2)
+    index2_grid =  Array{eltype(index_2)}(undef, n_1, n_2)
 
     for i in 1:n_2
         index1_grid[:,i] .= index_1
