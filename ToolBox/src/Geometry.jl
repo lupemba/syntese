@@ -39,7 +39,16 @@ scipy_interp = pyimport("scipy.interpolate");
     - geo_ref_table::Dict: Dictionary with latitude, longitude, and hights for a gird of points in the master image
 
 """
-function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,stride=(2,8))
+function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem;stride=(2,8))
+    # look_up_table
+    mosaic_view = SlcUtil.mosaic_view(meta[1],master_view)
+    lut = look_up_table(mosaic_view,meta,precise_orbit,dem,stride=(2,8))
+    coreg_slave, flat_inferogram, lut = coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,lut,stride=stride)
+
+    return coreg_slave, flat_inferogram, lut
+end
+
+function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,lut;stride=(2,8))
     # get some coficents
     c = 299792458
     range_pixel_spacing =  c/(2*meta[1]["range_sampling_rate"])
@@ -48,11 +57,8 @@ function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,str
     # Get the midburst speed
     v_mid = mid_burst_speed(precise_orbit[2], meta[2]);
 
-    # look_up_table
-    mosaic_view = SlcUtil.mosaic_view(meta[1],master_view)
-    lut = look_up_table(mosaic_view,meta,precise_orbit,dem,stride=(2,8))
-
     # get master line and sample
+    mosaic_view = SlcUtil.mosaic_view(meta[1],master_view)
     master_line, master_sample = Misc.flatten(mosaic_view...)
 
     # interpolate slave line and sample
@@ -172,12 +178,7 @@ function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,str
         flat_inferogram[(start_line_master:end_line_master) .- (master_view[1].start-1),:] .= flat
     end
 
-    # remove the slave goemtry and return the dict as geo_ref_table
-    delete!(lut, "slave_sample")
-    delete!(lut, "slave_line")
-    geo_ref_table = lut
-
-    return coreg_slave, flat_inferogram, geo_ref_table
+    return coreg_slave, flat_inferogram, lut
 end
 
 

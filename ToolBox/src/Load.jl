@@ -297,8 +297,8 @@ function dem(path, lat_lon_window; nan_fill= NaN, padding=[0,0],nan_value =-3276
     #dem_view = [row_interval[1]:row_interval[2], col_interval[1]:col_interval[2]]
     transform = dem_annotations.get_transform()
 
-    rows = collect(1:dem_annotations.height);
-    columns = collect(1:dem_annotations.width);
+    rows = collect(1:dem_annotations.height).-1;
+    columns = collect(1:dem_annotations.width).-1;
     lon = transform[1] .+ rows .* transform[2];
     lat  = transform[4] .+ columns .* transform[6];
 
