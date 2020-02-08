@@ -6,7 +6,7 @@ import Dates
 rasterio = PyCall.pyimport("rasterio")
 
 
-export slc_data, slc_ann, precise_orbit
+export slc_data, slc_meta, precise_orbit
 
 
 """
@@ -213,6 +213,20 @@ function _str2date(time)
 end
 
 """
+    _str2time_v2
+    Convert a string of format "20170327t053950" to a DateTime with an
+    accuarcy of hours
+"""
+function _str2time_v2(time)
+    y = parse(Int,time[1:4])
+    m = parse(Int,time[5:6])
+    d = parse(Int,time[7:8])
+    h = parse(Int,time[10:11])
+
+    return Dates.DateTime(y, m, d, h)
+end
+
+"""
     _str_date2float(time,t_0)
 
     # Arguments
@@ -309,5 +323,174 @@ function dem(path, lat_lon_window; nan_fill= NaN, padding=[0,0],nan_value =-3276
     # return subset of dem and dem_view
     return lat, lon, dem_data
 end
+
+"""
+    slc_calibration(path,t_0)
+
+    Load calibration vectors of s1 SLC products
+
+    # Arguments
+    - `path::String`: path to calicration file
+    - `t_0::DateTime`: Reference time
+
+    # Output
+    - `s1_cal::Dict`: Dict with calibration information
+"""
+function slc_calibration(path,t_0)
+    doc = EzXML.readxml(path)
+    cal_dict = XMLDict.xml_dict(doc)
+
+    s1_cal  = Dict{String,Any}()
+
+    abs_cal_constant = cal_dict["calibration"]["calibrationInformation"]["absoluteCalibrationConstant"]
+    s1_cal["abs_cal_constant"] = parse(Float64,abs_cal_constant)
+
+    cal_vectors = cal_dict["calibration"]["calibrationVectorList"]["calibrationVector"]
+    s1_cal["azimuth_times"] = [Load._str_date2float(elem["azimuthTime"], t_0) for elem in cal_vectors]
+    s1_cal["line"] = [parse(Int,elem["line"]) for elem in cal_vectors] .+1
+    s1_cal["sample"] = parse.(Int,split(cal_vectors[1]["pixel"][""])) .+1
+    s1_cal["sigma"] = vcat([parse.(Float64,split(elem["sigmaNought"][""]))' for elem in cal_vectors]...)
+    s1_cal["beta"] = vcat([parse.(Float64,split(elem["betaNought"][""]))' for elem in cal_vectors]...)
+    s1_cal["gamma"] = vcat([parse.(Float64,split(elem["gamma"][""]))' for elem in cal_vectors]...)
+    s1_cal["dn"] = vcat([parse.(Float64,split(elem["dn"][""]))' for elem in cal_vectors]...)
+    return s1_cal
+end
+
+"""
+    slc_paths(safe_path,polarization,subswath)
+
+    returns the paths for a given polarization and subswath number
+
+    # Arguments
+    - `safe_path::String`: path to safe folder
+    - `polarization::String`: "VV" or "VH"
+    - `subswath::Int`: Subswath number
+
+    # Output
+    - `data_path::String`: absolute path to data
+    - `meta_path::String`: absolute path to annotaions
+    - `calibration_path::String`: absolute path to calibration
+
+    # Examples:
+    ```jldoctest
+    julia> safe_path = "/Users/simon/Data/Sentinel/vejle_oktober/S1A_IW_SLC__1SDV_20190917T170931_20190917T170958_029064_034C5E_2484.SAFE";
+    julia> data_path, meta_path, calibration_path = Load.slc_slc_paths(safe_path, "VV", 3);
+    ```
+"""
+function slc_paths(safe_path,polarization,subswath)
+
+    # Get the image number
+    if uppercase(polarization) == "VV"
+        # VV has numbers after vh
+        image_number = string(3+subswath)
+    elseif uppercase(polarization) == "VH"
+        image_number = string(subswath)
+    else
+        println("Polarization can only be VV or VH")
+        @assert 2 == 1
+    end
+
+    # Annotations files
+    meta_path = joinpath(safe_path, "annotation")
+    calibration_path = joinpath(meta_path, "calibration")
+    data_path = joinpath(safe_path, "measurement")
+
+
+    calibration_files = readdir(calibration_path)
+    # Find the one with the right number
+    index = [string(elem[end-4]) == image_number for elem in calibration_files]
+    # Select only files starting with "cal"
+    index2 = [elem[1:3] == "cal" for elem in calibration_files]
+    cal_file = calibration_files[index .& index2]
+    @assert length(cal_file) == 1
+    calibration_path = joinpath(calibration_path, cal_file[1])
+
+    annotaions = readdir(meta_path)
+    # Find the one with the right number
+    index = [string(elem[end-4]) == image_number for elem in annotaions]
+    meta_file = annotaions[index]
+    # Assert is there is not axacly one file with the number
+    @assert length(meta_file) == 1
+    meta_path = joinpath(meta_path, meta_file[1])
+
+    # Data files
+    tiffs = readdir(data_path)
+
+    # Find the one with the right number
+    index = [string(elem[end-5]) == image_number for elem in tiffs]
+    data_file = tiffs[index]
+    # Assert is there is not axacly one file with the number
+    @assert length(data_file) == 1
+    data_path = joinpath(data_path, data_file[1])
+
+    return data_path, meta_path, calibration_path
+end
+
+"""
+    pod_path(t_0,mission_id,pod_folder_path = "/Users/simon/Data/Sentinel/POE")
+
+    search pod_folder_path for the right POE and returns the path for it
+
+    # Arguments
+    - `t_0::Datetime`: Datetime of image as given in slc meta
+    - `mission_id::String`: mission_id as given in slc meta
+    - `pod_folder_path::string`: path to folder with precies orbit file
+
+    # Output
+    - `pod_path::String`: absolute path to the POE
+
+    # Examples:
+    ```jldoctest
+    julia> meta = Load.slc_meta(meta_path);
+    julia> pod_path = Load.pod_path(meta["t_0"], meta["mission_id"], "/Users/simon/Data/Sentinel/POE");
+    ```
+"""
+function pod_path(t_0::Dates.DateTime, mission_id, pod_folder_path = "/Users/simon/Data/Sentinel/POE")
+
+    POE_files = readdir(pod_folder_path)
+
+    # Check sattelite name
+    index_sat = [uppercase(elem[1:3]) == uppercase(mission_id) for elem in POE_files]
+
+    # Check times
+    t_start = [Dates.Minute(_str2time_v2(elem[43:57])- t_0).value for elem in POE_files]
+    t_end = [Dates.Minute(_str2time_v2(elem[59:72])- t_0).value for elem in POE_files]
+
+    # Get POE with correct sat, start time before img_time and stop time after
+    index = index_sat .& (t_start.<0) .& (t_end .> 0)
+    POE_path = POE_files[index]
+
+    # Check if POE is found
+    if length(POE_path)<1
+        println("Error no POE found")
+        @assert 1==2
+    end
+
+    return joinpath(pod_folder_path,POE_path[1])
+end
+
+"""
+    pod_path(safe_folder,pod_folder_path = "/Users/simon/Data/Sentinel/POE")
+
+    overload of normal pod_path(t_0,mission_id,pod_folder_path = "/Users/simon/Data/Sentinel/POE")
+    Gets t_0 and mission_id from folder name
+
+    # new Argument
+    - `safe_folder::String`: name or path of the safe folder.
+"""
+function pod_path(safe_folder::String, pod_folder_path = "/Users/simon/Data/Sentinel/POE")
+
+    # If safe_folder is a path just take the folder name
+    if isdir(safe_folder)
+        safe_folder = splitdir(safe_folder)[end]
+    end
+
+    # get time and mission id
+    mission_id = safe_folder[1:3]
+    t_0 = _str2time_v2(safe_folder[18:end])
+
+    return pod_path(t_0,mission_id,pod_folder_path)
+end
+
 
 end
