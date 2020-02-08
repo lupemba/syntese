@@ -3,6 +3,9 @@ import PyCall
 import EzXML
 import XMLDict
 import Dates
+import HTTP
+import JSON
+
 rasterio = PyCall.pyimport("rasterio")
 
 
@@ -448,7 +451,7 @@ end
 function pod_path(t_0::Dates.DateTime, mission_id, pod_folder_path = "/Users/simon/Data/Sentinel/POE")
 
     POE_files = readdir(pod_folder_path)
-
+    POE_files = POE_files[[length(name) > 71 for name in POE_files]]
     # Check sattelite name
     index_sat = [uppercase(elem[1:3]) == uppercase(mission_id) for elem in POE_files]
 
@@ -462,11 +465,13 @@ function pod_path(t_0::Dates.DateTime, mission_id, pod_folder_path = "/Users/sim
 
     # Check if POE is found
     if length(POE_path)<1
-        println("Error no POE found")
-        @assert 1==2
+        println("POE not found. Dowload initiated")
+        pod_path = _download_pod(t_0,mission_id,pod_folder_path)
+    else
+        pod_path = joinpath(pod_folder_path,POE_path[1])
     end
 
-    return joinpath(pod_folder_path,POE_path[1])
+    return pod_path
 end
 
 """
@@ -490,6 +495,35 @@ function pod_path(safe_folder::String, pod_folder_path = "/Users/simon/Data/Sent
     t_0 = _str2time_v2(safe_folder[18:end])
 
     return pod_path(t_0,mission_id,pod_folder_path)
+end
+
+"""
+    _download_pod(t_0,mission_id,pod_folder_path)
+
+    Download the correct POE and returns the name
+
+"""
+function _download_pod(t_0,mission_id,pod_folder_path)
+
+    url_base = "https://qc.sentinel1.eo.esa.int/api/v1/?product_type=AUX_POEORB&validity_stop__gt="
+    url_request = url_base*repr(t_0)*"&validity_start__lt="*repr(t_0)
+    r = HTTP.request("GET", url_request)
+
+    # check response
+    @assert r.status == 200
+
+    response = JSON.parse(String(r.body))
+
+    # Find one with correct mission id
+    names =  [elem["physical_name"] for elem in response["results"]]
+    index = [elem[1:3] == uppercase(mission_id) for elem in names]
+    pod_file = response["results"][index][1]
+
+    # download file
+    pod_path = joinpath(pod_folder_path,pod_file["physical_name"])
+    download(pod_file["remote_url"], pod_path)
+
+    return pod_path
 end
 
 

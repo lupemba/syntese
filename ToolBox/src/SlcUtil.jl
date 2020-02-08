@@ -32,8 +32,8 @@ function complex_coherence(master, slave, flat, kernel, view)
     # Cut away padded areas
     no_padd = (size(kernel, 1):size(master, 1)-size(kernel, 1)+1, size(kernel, 2):size(master, 2)-size(kernel, 2)+1)
     complex_coherence = complex_coherence[no_padd...]
-    master_intensity = master_intensity[no_padd...]
-    slave_intensity = slave_intensity[no_padd...]
+    master_intensity = master_intensity[no_padd...]./ length(kernel_2)
+    slave_intensity = slave_intensity[no_padd...]./ length(kernel_3)
 
     # Pixel positions in line, sample
     lines = (size(kernel, 2)/2:1:size(master,2) - size(kernel, 2)/2) .+ view[2].start
@@ -436,6 +436,36 @@ function plot_water(img,water,max_quantile=0.98)
     gray[gray.>1] .= 0
     return Colors.RGB{Float32}.(gray,gray,gray.+water)
 end
+
+
+
+function calibrate_slave_data(data, view,lut, calibration_dict , kind = "sigma")
+
+    master_line, master_sample = Misc.flatten(view...)
+    # interpolate slave line and sample
+    slave_line = Misc.interp_grid(lut["master_line"] ,lut["master_sample"],
+    reshape(lut["slave_line"],(length(lut["master_line"]),length(lut["master_sample"])))
+    ,view[1], view[2])
+    slave_sample = Misc.interp_grid(lut["master_line"] ,lut["master_sample"],
+        reshape(lut["slave_sample"],(length(lut["master_line"]),length(lut["master_sample"])))
+        ,view[1], view[2]);
+    slave_line = reshape(slave_line,:)
+    slave_sample= reshape(slave_sample,:)
+
+
+    return calibrate_data(data, slave_line, slave_sample, calibration_dict, kind)
+end
+
+
+
+function calibrate_data(data, lines, samples, calibration_dict, kind = "sigma")
+    cal_line, cal_sample = Misc.flatten(calibration_dict["line"],calibration_dict["sample"])
+    cal_value = Misc.interp(cal_line,cal_sample, reshape(calibration_dict[kind],:), lines , samples)
+    cal_value = reshape(cal_value,size(data));
+    return data./cal_value
+end
+
+
 
 
 end

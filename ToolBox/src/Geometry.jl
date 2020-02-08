@@ -42,13 +42,13 @@ scipy_interp = pyimport("scipy.interpolate");
 function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem;stride=(2,8))
     # look_up_table
     mosaic_view = SlcUtil.mosaic_view(meta[1],master_view)
-    lut = look_up_table(mosaic_view,meta,precise_orbit,dem,stride=(2,8))
-    coreg_slave, flat_inferogram, lut = coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,lut,stride=stride)
+    lut = look_up_table(mosaic_view,meta,precise_orbit,dem,stride=stride)
+    coreg_slave, flat_inferogram = coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,lut)
 
     return coreg_slave, flat_inferogram, lut
 end
 
-function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,lut;stride=(2,8))
+function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,lut)
     # get some coficents
     c = 299792458
     range_pixel_spacing =  c/(2*meta[1]["range_sampling_rate"])
@@ -178,7 +178,7 @@ function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,lut
         flat_inferogram[(start_line_master:end_line_master) .- (master_view[1].start-1),:] .= flat
     end
 
-    return coreg_slave, flat_inferogram, lut
+    return coreg_slave, flat_inferogram
 end
 
 
