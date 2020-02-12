@@ -55,11 +55,15 @@ end
     - `index2_out::Array{Float,N}`: Array with the second index of output points
     - `order::Int`: order of the polynomial interpolation.
 """
-function resample(view_in, data, index1_out, index2_out,order=1)
-    index = [index1_out.-view_in[1].start, index2_out.-view_in[2].start]
-    data_real = ndimage.map_coordinates(real.(data), index, order=order, mode="nearest")
-    data_imag = ndimage.map_coordinates(imag.(data), index, order=order, mode="nearest")
-    return data_real .+ data_imag.*im
+function resample(view_in, data, index1_out, index2_out,order=1,mode="constant")
+    index = [index1_out.- collect(view_in[1])[1], index2_out.-collect(view_in[2])[1]]
+    if eltype(data) <: Complex
+        data_real = ndimage.map_coordinates(real.(data), index, order=order, mode=mode)
+        data_imag = ndimage.map_coordinates(imag.(data), index, order=order, mode=mode)
+        return data_real .+ data_imag.*im
+    else
+        return ndimage.map_coordinates(data, index, order=order, mode=mode)
+    end
 end
 
 """

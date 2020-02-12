@@ -35,9 +35,10 @@ function complex_coherence(master, slave, flat, kernel, view)
     master_intensity = master_intensity[no_padd...]./ length(kernel_2)
     slave_intensity = slave_intensity[no_padd...]./ length(kernel_3)
 
+    #TODO change lines, samples to view
     # Pixel positions in line, sample
-    lines = (size(kernel, 2)/2:1:size(master,2) - size(kernel, 2)/2) .+ view[2].start
-    samples = (size(kernel, 1)/2:1:size(master,1) - size(kernel, 1)/2) .+ view[1].start
+    samples = (size(kernel, 2)/2 :1:size(master,2) - size(kernel, 2)/2) .+ view[2].start
+    lines = (size(kernel, 1)/2:1:size(master,1) - size(kernel, 1)/2) .+ view[1].start
 
     return complex_coherence, master_intensity, slave_intensity, lines, samples
 end

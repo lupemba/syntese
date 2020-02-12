@@ -258,18 +258,23 @@ function look_up_table(master_view,meta,precise_orbit,dem;stride=(1,1))
     line_sample_dem = to_line_sample(hcat(lat_dem,lon_dem),heights,precise_orbit[1]...,meta[1])
     lut["heights"] = Misc.interp(line_sample_dem[:,1], line_sample_dem[:,2], heights,
                                 master_line, master_sample)
+    @assert sum(isnan.(lut["heights"])) == 0
 
     # Get latitude and longitude
     lat_lon = to_lat_lon(hcat(master_line,master_sample),lut["heights"],
     precise_orbit[1]...,meta[1])
     lut["latitude"] = lat_lon[:,1]
     lut["longitude"] = lat_lon[:,2]
+    @assert sum(isnan.(lut["latitude"])) == 0
+    @assert sum(isnan.(lut["longitude"])) == 0
 
     # Get slave line and sample
     line_sample = to_line_sample(hcat(lut["latitude"],lut["longitude"]),lut["heights"],
     precise_orbit[2]...,meta[2]);
     lut["slave_line"] = line_sample[:,1]
     lut["slave_sample"] = line_sample[:,2]
+    @assert sum(isnan.(lut["slave_line"])) == 0
+    @assert sum(isnan.(lut["slave_sample"])) == 0
 
     return lut
 end
