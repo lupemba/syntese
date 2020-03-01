@@ -37,8 +37,8 @@ function complex_coherence(master, slave, flat, kernel, view)
 
     #TODO change lines, samples to view
     # Pixel positions in line, sample
-    samples = (size(kernel, 2)/2 :1:size(master,2) - size(kernel, 2)/2) .+ view[2].start
-    lines = (size(kernel, 1)/2:1:size(master,1) - size(kernel, 1)/2) .+ view[1].start
+    samples = (size(kernel, 2)-1 :1:size(master,2) - size(kernel, 2)) .+ view[2].start
+    lines = (size(kernel, 1)-1 :1:size(master,1) - size(kernel, 1)) .+ view[1].start
 
     return complex_coherence, master_intensity, slave_intensity, lines, samples
 end
@@ -467,6 +467,26 @@ function calibrate_data(data, lines, samples, calibration_dict, kind = "sigma")
 end
 
 
+
+function temporal_filter(images, k)
+    correction = zeros(size(images[1]));
+    k = 5
+    kernel = ones(k,k)
+    pad = round(Int,(k-1)/2)
+    n = length(images)
+    sigma = similar(images)
+
+
+    for i in 1:n
+
+        sigma[i] = Misc.fastconv(images[i],kernel)[1+pad:end-pad,1+pad:end-pad]./k^2;
+        correction .+= images[i]./ sigma[i]
+    end
+
+    correction = correction./n
+
+    return [elem.*correction for elem in sigma]
+end
 
 
 end

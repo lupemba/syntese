@@ -411,7 +411,8 @@ function slc_paths(safe_path,polarization,subswath)
     annotaions = readdir(meta_path)
     # Find the one with the right number
     index = [string(elem[end-4]) == image_number for elem in annotaions]
-    meta_file = annotaions[index]
+    index2 = [elem[1:2] == "s1" for elem in annotaions]
+    meta_file = annotaions[index .& index2]
     # Assert is there is not axacly one file with the number
     @assert length(meta_file) == 1
     meta_path = joinpath(meta_path, meta_file[1])
@@ -421,7 +422,8 @@ function slc_paths(safe_path,polarization,subswath)
 
     # Find the one with the right number
     index = [string(elem[end-5]) == image_number for elem in tiffs]
-    data_file = tiffs[index]
+    index2 = [elem[1:2] == "s1" for elem in tiffs]
+    data_file = tiffs[index .& index2]
     # Assert is there is not axacly one file with the number
     @assert length(data_file) == 1
     data_path = joinpath(data_path, data_file[1])
@@ -513,6 +515,18 @@ function _download_pod(t_0,mission_id,pod_folder_path)
     @assert r.status == 200
 
     response = JSON.parse(String(r.body))
+
+    if length(response["results"]) < 1
+        println("No POE avalible, Get RES instead")
+        url_base = "https://qc.sentinel1.eo.esa.int/api/v1/?product_type=AUX_RESORB&validity_stop__gt="
+        url_request = url_base*repr(t_0)*"&validity_start__lt="*repr(t_0)
+        r = HTTP.request("GET", url_request)
+
+        # check response
+        @assert r.status == 200
+
+        response = JSON.parse(String(r.body))
+    end
 
     # Find one with correct mission id
     names =  [elem["physical_name"] for elem in response["results"]]
