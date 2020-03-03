@@ -12,6 +12,28 @@ scipy_interp = pyimport("scipy.interpolate");
 export SlcRaw, show_img, original_view, footprint, phase_ramp
 
 
+
+
+
+"""
+    complex_coherence(master, slave, flat, kernel, view)
+
+    Calculates the complex coherence by multilooking
+
+    # Arguments
+    - master::Array{Complex{Float64},2}: The master data mosaic
+    - slave::Array{Complex{Float64},2}: The coregistrated slave data mosaic
+    - flat::Array{Complex{Float64},2}: The flat earth and topografi phase
+    - kernel::Array{Number,2}: Kernel to multilooking
+    - view::Array{range}(2): - (line_range,sample_range), of the master data
+
+    # Output
+    - complex_coherence::Array{Complex{Float64},2}: Complex coherence
+    - master_intensity::Array{Float64,2}: Multilooked master intensity
+    - slave_intensity::Array{Complex{Float64},2}: Multilooked slave intensity
+    - lines::Range : line range of results
+    - sample::Range : sample range of results
+"""
 function complex_coherence(master, slave, flat, kernel, view)
     # Define relevant image signals
     signal_1 = master .* conj.(slave) .* flat
@@ -37,14 +59,31 @@ function complex_coherence(master, slave, flat, kernel, view)
 
     #TODO change lines, samples to view
     # Pixel positions in line, sample
-    samples = (size(kernel, 2)-1 :1:size(master,2) - size(kernel, 2)) .+ view[2].start
-    lines = (size(kernel, 1)-1 :1:size(master,1) - size(kernel, 1)) .+ view[1].start
+    lines = ((1-(size(kernel)[1]-1)/2) :1: (size(master,1) +(size(kernel)[1]-1)/2)) .+ (view[1].start-1)
+    lines = lines[no_padd[1]]
+    samples = ((1-(size(kernel)[2]-1)/2) :1: (size(master,2) +(size(kernel)[2]-1)/2)) .+ (view[2].start-1)
+    samples = samples[no_padd[2]]
 
     return complex_coherence, master_intensity, slave_intensity, lines, samples
 end
 
 
+"""
+    mosaic(data,view_data,meta)
 
+    Remove the burst structure of the data. Equvilant to ESA snap
+    TOPS deburst
+
+    # Arguments
+    - data::Array{Complex{Float64},2}: The data
+    - view::Array{range}(2): - (line_range,sample_range), of the data
+    - `meta::Dict`:  Meta information from the Sentinel-1 SLC image
+
+    # Output
+    - mosaic_data::Array{Complex{Float64},2}: mosaiced data
+    - mosaic_view::Array{Float64,2}:(line_range,sample_range), view of the mosaiced
+                                    data
+"""
 function mosaic(data,view_data,meta)
 # Find the burst in the image
 start_burst = ceil(Int,(view_data[1].start)/meta["lines_per_burst"])
@@ -440,6 +479,24 @@ end
 
 
 
+
+"""
+    calibrate_slave_data(data, view,lut, calibration_dict , kind = "sigma")
+
+    !!! This function is for coregistered slave data!!!
+    !!! For not resampled data use calibrate_data()!!!
+    Calibrate the data to backscatter.
+
+    # Arguments
+    - data::Array{Complex{Float64},2}: The data complex data or the amplitude.
+    - view::Array{range}(2): - (line_range,sample_range), of the data
+    - `calibration_dict`: calibration data as returned by Load.slc_calibration()
+    - kind::String : Must match a key in calibration_dict
+
+- `lut::Dict`:  Look up table
+    # Output
+    - calibrated_data::Array{Complex{Float64},2}: mosaiced data
+"""
 function calibrate_slave_data(data, view,lut, calibration_dict , kind = "sigma")
 
     master_line, master_sample = Misc.flatten(view...)
@@ -458,7 +515,23 @@ function calibrate_slave_data(data, view,lut, calibration_dict , kind = "sigma")
 end
 
 
+"""
+    calibrate_data(data, lines, samples, calibration_dict, kind = "sigma")
 
+    !!! Do not use for resampled data!!!
+    !!! see calibrate_slave_data() instead!!!
+    Calibrate the data to backscatter.
+
+    # Arguments
+    - data::Array{Complex{Float64},2}: The data complex data or the amplitude.
+    - lines::range: - range or Array of lines in the data
+    - samples::range: - range or Array of samples in the data
+    - `calibration_dict`: calibration data as returned by Load.slc_calibration()
+    - kind::String : Must match a key in calibration_dict
+
+    # Output
+    - calibrated_data::Array{Complex{Float64},2}: mosaiced data
+"""
 function calibrate_data(data, lines, samples, calibration_dict, kind = "sigma")
     cal_line, cal_sample = Misc.flatten(calibration_dict["line"],calibration_dict["sample"])
     cal_value = Misc.interp(cal_line,cal_sample, reshape(calibration_dict[kind],:), lines , samples)
@@ -467,7 +540,21 @@ function calibrate_data(data, lines, samples, calibration_dict, kind = "sigma")
 end
 
 
+"""
+    temporal_filter(images, k)
 
+    Apply a simple temporal sepckle filter. Described in
+    "Filtering of Multichannel SAR Images" by Shaun Quegan and Jiong Jiong Yu (2001)
+    Equation 14
+
+    # Arguments
+    - images::Array{Array{Float64,2},1}: Array of coregistered intensity images
+    - k::Int: Size of kernel
+
+    # Output
+    - filtered_images::Array{Array{Float64,2},1}: Array of filtered images
+
+"""
 function temporal_filter(images, k)
     correction = zeros(size(images[1]));
     k = 5
