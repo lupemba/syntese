@@ -557,7 +557,6 @@ end
 """
 function temporal_filter(images, k)
     correction = zeros(size(images[1]));
-    k = 5
     kernel = ones(k,k)
     pad = round(Int,(k-1)/2)
     n = length(images)
