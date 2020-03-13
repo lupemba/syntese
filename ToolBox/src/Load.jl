@@ -541,4 +541,45 @@ function _download_pod(t_0,mission_id,pod_folder_path)
 end
 
 
+
+"""
+    unzip(zip_files,folder,taget_folder,remove_zip=false)
+
+    unzip files. Note that it prints a lot to the screen
+
+    # Arguments
+    - `zip_files::Array{string}`: Array with file names
+    - `folder::Path`: path of the folder with the zipfiles
+    - `target_folder::Path`: Folder where the extracted files will be located. The folder will be created if it does not exist
+    - `remove_zip::Bool`: If true the zip_files will be removed after extraction.
+
+    # Examples:
+    ```jldoctest
+    julia> folder = "/home/data/simon/data";
+    julia> target_folder = "/home/data/simon/data/177_jutlandS_winter2020";
+    julia> zip_files = [
+                    "S1A_IW_SLC__1SDV_20200208T170928_20200208T170956_031164_03953C_E56D.zip",
+                    "S1A_IW_SLC__1SDV_20200220T170928_20200220T170955_031339_039B3F_8FCB.zip",
+                    "S1B_IW_SLC__1SDV_20200214T170846_20200214T170913_020268_026619_0A0D.zip"
+                        ]
+    julia> Load.unzip(zip_files,folder,target_folder,true);
+    ```
+"""
+function unzip(zip_files,folder,taget_folder,remove_zip=false)
+    # Make taget folder if it does not exist.
+    if !isdir(taget_folder)
+        mkpath(taget_folder)
+    end
+    
+    # unzip all files
+    [ run(`unzip $(joinpath(folder,elem)) -d $taget_folder`) for elem in zip_files]
+    
+    # removes zip files
+    if remove_zip
+        [ run(`rm $(joinpath(folder,elem))`) for elem in zip_files]
+    end
+    
+end
+
+
 end
