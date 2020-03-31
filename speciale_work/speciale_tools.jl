@@ -2,6 +2,55 @@ include("../ToolBox/ToolBox.jl")
 using .ToolBox
 using Colors
 import PyCall
+import StatsBase;
+import LsqFit
+import Statistics
+
+
+
+
+function bimodal_tile(data,nbins;max_iter=10000,conditions=(2,0.99,0.1))
+    p_fit,y,w = fit_bimodal_gauss(data,nbins,max_iter)
+    
+    ad = sqrt(2)*abs(p_fit[3]-p_fit[4])/sqrt(p_fit[5]^2+p_fit[6]^2)
+    bc = sum(sqrt.(w).*sqrt.(bimodal_gauss_model(y, p_fit)))/sum(w)
+    sr = minimum([p_fit[1]*p_fit[5],p_fit[2]*p_fit[6]])/maximum([p_fit[1]*p_fit[5],p_fit[2]*p_fit[6]])
+
+    BM_tile = (ad>conditions[1])&(bc>conditions[2])&(sr>conditions[3])
+    return BM_tile, [ad,bc,sr]
+end
+
+flat(band,test_area) = reshape(band[test_area...],:)
+
+LsqFit.@. bimodal_gauss_model(x, p) = p[1]*exp(-0.5*((x-p[3])/p[5])^2) +  p[2]*exp(-0.5*((x-p[4])/p[6])^2)
+
+function fit_bimodal_gauss(data,n_bins,maxIter=1000)
+    h = StatsBase.fit(StatsBase.Histogram, data,nbins=n_bins)
+    w = h.weights
+    edges = collect(h.edges[1])
+    y = (edges[2:end] +  edges[1:end-1])/2;
+    
+    # normalise
+    step_size = abs.(edges[2:end] .- edges[1:end-1])
+    w = w./sum(w.*step_size)
+    
+    
+    p0 = zeros(Float64,6)
+    y_ot = Statistics.median(data)
+
+    p0[3] = Statistics.mean(data[data.<y_ot])
+    p0[5] = Statistics.std(data[data.<y_ot])
+    p0[1] = w[findfirst(y.>p0[3])]
+
+
+    p0[4] = Statistics.mean(data[data.>y_ot])
+    p0[6] = Statistics.std(data[data.>y_ot])
+    p0[2] = w[findfirst(y.>p0[4])];
+    p_fit = LsqFit.curve_fit(bimodal_gauss_model, y, w, p0; autodiff=:forwarddiff,maxIter=1000).param
+    
+    return p_fit, y, w
+
+end
 
 
 shapely_geometry = PyCall.pyimport("shapely.geometry")
