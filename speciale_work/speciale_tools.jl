@@ -5,39 +5,239 @@ import PyCall
 import StatsBase;
 import LsqFit
 import Statistics
+import FileIO
+import Optim
+
+shapely_geometry = PyCall.pyimport("shapely.geometry")
+skimage_meas = PyCall.pyimport("skimage.measure");
+pandas = PyCall.pyimport("pandas")
+geopandas = PyCall.pyimport("geopandas")
+ndimage = PyCall.pyimport("scipy.ndimage")
+skimage_morph = PyCall.pyimport("skimage.morphology");
+
+
+flat(band,test_area) = reshape(band[test_area...],:)
+
+LsqFit.@. bimodal_gauss_model(x, p) = p[1]*exp(-0.5*((x-p[3])/p[5])^2) +  p[2]*exp(-0.5*((x-p[4])/p[6])^2)
+
+LsqFit.@. gauss_model(x, p) = p[1]*exp(-0.5*((x-p[2])/p[3])^2) 
+
+
+function sse_water_fit(flood_band,change_band,seed_mask,bm_mask, p_water,w_sum,edges,y, rg_thresholds)
+    #use region growinf
+    rg_mask = (flood_band .<rg_thresholds[1]) .& (change_band.<rg_thresholds[2]) .| seed_mask 
+    rg_result, steps = region_growing(seed_mask,rg_mask);
+    
+    # select the water pixelss in the selected tiles
+    data = reshape(flood_band,:)[reshape(rg_mask.&bm_mask,:)];
+    
+    # Compare histogram with the emepircal in p_water
+    h = StatsBase.fit(StatsBase.Histogram, data,edges)
+    w_sel = h.weights./w_sum;
+    w_water_est = gauss_model(y,p_water)
+    
+    # return sum of squred errors
+    SSE = (w_sel .- w_water_est)'*(w_sel .- w_water_est)
+    return SSE
+end
+
+"""
+find_y_seed(p_fit,y,min_ratio = 0.99)
+
+find the y_seed
+
+"""
+function find_y_seed(p_fit,y,min_ratio = 0.99)
+    p_water = p_fit[[1,3,5]]
+    p_nonwater = p_fit[[2,4,6]]
+    ratio = gauss_model(y,p_water)./bimodal_gauss_model(y, p_fit)
+    # Select y_seed where the single gauuss divege from the bimodal_gauss_model
+    y_seed = y[y.>p_water[2]][ findfirst(ratio[y.>p_water[2]].<min_ratio)]
+    return y_seed
+end
 
 
 
+function HSBA_floodmask(flood_band,ref_band)
+    change_band = flood_band.-ref_band;
+    
+    # Find the tiles to fit bimodal
+    bm_mask_flood = find_bimodal_tiles(flood_band);
+    bm_mask_change = find_bimodal_tiles(change_band);
+    bm_mask = bm_mask_change.&bm_mask_flood
+    
+    # fit bimodel
+    data = reshape(flood_band,:)[reshape(bm_mask,:)]
+    p_fit,y,w,edges, w_sum = fit_bimodal_gauss(data,round(Int64,length(data)/50))
+    
+    # Find seed pixels
+    y_seed =find_y_seed(p_fit,y)
+    seed_mask = flood_band .<y_seed
+    
+    # optimize y_RG and delta_sigma tresholds
+    t_0 = [y_seed+1, -1]
+    res = Optim.optimize(
+        t -> sse_water_fit(flood_band,change_band,seed_mask,bm_mask, p_fit[[1,3,5]],w_sum,edges,y, t), 
+        t_0; autodiff = :forward)
+    
+    # use optimize values to find flood mask
+    rg_thresholds = res.minimizer
+    rg_mask = (flood_band .<rg_thresholds[1]) .& (change_band.<rg_thresholds[2]) .| seed_mask 
+    flood_mask, steps = region_growing(seed_mask,rg_mask);
+    
+    # Make region growing og refference image to find Permant water and false positives
+    seed_mask_ref = ref_band .<y_seed
+    rg_mask_ref = (ref_band .<rg_thresholds[1])
+    ref_mask, steps = region_growing(seed_mask_ref,rg_mask_ref);
+    
+    # Remove flase positives and permant water.
+    final_mask = flood_mask .& (ref_mask .!=true);
+    
+    return final_mask, [y_seed,rg_thresholds...]
+end
 
-function bimodal_tile(data,nbins;max_iter=10000,conditions=(2,0.99,0.1))
-    p_fit,y,w = fit_bimodal_gauss(data,nbins,max_iter)
+
+"""
+Test function to use the HSBA algorithmn but with given thresholds
+
+"""
+function No_HSBA_floodmask(flood_band,ref_band,thresholds)
+    change_band = flood_band.-ref_band;
+    seed_mask = flood_band .<thresholds[1]
+    
+    # use optimize values to find flood mask
+    rg_mask = (flood_band .<thresholds[2]) .& (change_band.<thresholds[3]) .| seed_mask 
+    flood_mask, steps = region_growing(seed_mask,rg_mask);
+    
+    # Make region growing og refference image to find Permant water and false positives
+    seed_mask_ref = ref_band .<thresholds[1]
+    rg_mask_ref = (ref_band .<thresholds[2])
+    ref_mask, steps = region_growing(seed_mask_ref,rg_mask_ref);
+    
+    # Remove flase positives and permant water.
+    final_mask = flood_mask .& (ref_mask .!=true);
+    
+    return final_mask, flood_mask, ref_mask
+end
+
+
+function region_growing(seed_mask,region_grow_mask ; max_inter=1000, tol=0)
+    res = seed_mask
+    steps = 1
+    diff = tol +5
+    while diff> tol
+        
+        new_mask = _region_grow_step(res, region_grow_mask)
+        diff = sum(new_mask .!= res)
+        res= new_mask
+        
+        if steps >= max_inter
+            println("Max Iter reached:  region_growing()")
+            break
+        end
+        steps += 1
+    end
+    return res,steps
+end
+
+
+function _region_grow_step(seed_mask, region_grow_mask)
+    res = skimage_morph.binary_dilation(seed_mask)
+    return res.& region_grow_mask 
+end
+
+
+
+function rg_gif(file_path, seed_mask, region_grow_mask,img,n)
+    res = copy(seed_mask);
+    gif_file = Array{RGB{Float32}}(undef, size(res)..., n+1);
+    gif_file[:,:,1] .= add_mask(img, res ,(0,0,1))
+
+    for i = 1:n
+        res = _region_grow_step(res, region_grow_mask)
+        gif_file[:,:,i+1] .= add_mask(img, res ,(0,0,1));
+        end;
+
+    FileIO.save(file_path, gif_file)
+end
+
+function find_bimodal_tiles(data; N_limit = (10^3, 3*10^5), bin_size=50,conditions=(2,0.99,0.1),max_iter=10000)
+    
+    # initialize mask
+    dims = size(data)
+    N =  dims[1]*dims[2]
+    BM_mask = zeros(Bool,dims...)
+    
+    # If area is to small return false and exit function
+    # serves as a lower limit for the recursive function
+    if N < N_limit[1]
+        return BM_mask
+    end
+    
+    # If N is under max limit check for bimodal 
+    bm_tile = false
+    if N < N_limit[2]
+        n_bins = round(Int64,N/bin_size)
+        bm_tile, cons = bimodal_tile(reshape(data,:),n_bins,conditions=conditions,max_iter=max_iter) 
+    end
+    
+    
+    if bm_tile
+        BM_mask .= true
+    else
+        # If tile not bimodal, Split it in 4 and try again
+        row_split = floor(Int64,dims[1]/2)
+        col_split = floor(Int64,dims[2]/2)
+        
+        tiles = [(1:row_split,1:col_split),((row_split+1):dims[1],1:col_split),
+            (1:row_split,(col_split+1):dims[2]),((row_split+1):dims[1],(col_split+1):dims[2])]
+        
+        for elem in tiles
+            BM_mask[elem...] .= find_bimodal_tiles(data[elem...], 
+                N_limit =N_limit, bin_size=bin_size,conditions=conditions,max_iter=max_iter)
+        end
+        
+    end
+    
+    return BM_mask
+end
+    
+
+
+function bimodal_tile(data,n_bins;max_iter=10000,conditions=(2,0.99,0.1))
+    p_fit,y,w,edges,w_sum = fit_bimodal_gauss(data,n_bins,max_iter)
     
     ad = sqrt(2)*abs(p_fit[3]-p_fit[4])/sqrt(p_fit[5]^2+p_fit[6]^2)
-    bc = sum(sqrt.(w).*sqrt.(bimodal_gauss_model(y, p_fit)))/sum(w)
+    bc = sum(sqrt.(w[w .!=0]).*sqrt.(bimodal_gauss_model(y[w .!=0], p_fit)))
     sr = minimum([p_fit[1]*p_fit[5],p_fit[2]*p_fit[6]])/maximum([p_fit[1]*p_fit[5],p_fit[2]*p_fit[6]])
 
     BM_tile = (ad>conditions[1])&(bc>conditions[2])&(sr>conditions[3])
     return BM_tile, [ad,bc,sr]
 end
 
-flat(band,test_area) = reshape(band[test_area...],:)
-
-LsqFit.@. bimodal_gauss_model(x, p) = p[1]*exp(-0.5*((x-p[3])/p[5])^2) +  p[2]*exp(-0.5*((x-p[4])/p[6])^2)
 
 function fit_bimodal_gauss(data,n_bins,maxIter=1000)
+    # Get histogram
     h = StatsBase.fit(StatsBase.Histogram, data,nbins=n_bins)
     w = h.weights
     edges = collect(h.edges[1])
     y = (edges[2:end] +  edges[1:end-1])/2;
-    
+    w_sum = sum(w)
     # normalise
-    step_size = abs.(edges[2:end] .- edges[1:end-1])
-    w = w./sum(w.*step_size)
+    w = w./w_sum
     
-    
-    p0 = zeros(Float64,6)
-    y_ot = Statistics.median(data)
+    # find  OTSU threshold
+    # see https://ieeexplore-ieee-org.proxy.findit.dtu.dk/document/4310076
+    mu_k = cumsum(w.*y)
+    mu_t = mu_k[end]
+    omega_k = cumsum(w)
+    sigma2_b = (mu_t.*omega_k .- mu_k).^2 ./(omega_k .*(1 .- omega_k ))
+    sigma2_b[end] = 0  # last element is NaN but should be zero
+    y_ot = y[argmax(sigma2_b)]
 
+    # initialize parameters using OTSU threshold
+    p0 = zeros(Float64,6)
+    
     p0[3] = Statistics.mean(data[data.<y_ot])
     p0[5] = Statistics.std(data[data.<y_ot])
     p0[1] = w[findfirst(y.>p0[3])]
@@ -46,18 +246,15 @@ function fit_bimodal_gauss(data,n_bins,maxIter=1000)
     p0[4] = Statistics.mean(data[data.>y_ot])
     p0[6] = Statistics.std(data[data.>y_ot])
     p0[2] = w[findfirst(y.>p0[4])];
+    
+    # Fit function
     p_fit = LsqFit.curve_fit(bimodal_gauss_model, y, w, p0; autodiff=:forwarddiff,maxIter=1000).param
     
-    return p_fit, y, w
+    return p_fit, y, w,edges,w_sum
 
 end
 
 
-shapely_geometry = PyCall.pyimport("shapely.geometry")
-skimage_meas = PyCall.pyimport("skimage.measure");
-pandas = PyCall.pyimport("pandas")
-geopandas = PyCall.pyimport("geopandas")
-ndimage = PyCall.pyimport("scipy.ndimage")
 
 function db_scale_img(img , min , max)
     log_img = (10*log10.(img).-min)./(max-min)
