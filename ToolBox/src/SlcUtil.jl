@@ -85,101 +85,102 @@ end
                                     data
 """
 function mosaic(data,view_data,meta)
-# Find the burst in the image
-start_burst = ceil(Int,(view_data[1].start)/meta["lines_per_burst"])
-end_burst = ceil(Int,(view_data[1].stop-1)/meta["lines_per_burst"])
 
-#find the overlaps
-overlap = meta["lines_per_burst"].+meta["burst_meta"]["first_line_mosaic"][1:end-1] .- meta["burst_meta"]["first_line_mosaic"][2:end]
-d_ovelap_m = floor.(Int,overlap .*0.5)
-d_ovelap_p = overlap .- d_ovelap_m
+    # Find the burst in the image
+    start_burst = ceil(Int,(view_data[1].start)/meta["lines_per_burst"])
+    end_burst = ceil(Int,(view_data[1].stop-1)/meta["lines_per_burst"])
 
-# Initialise start line
-start_line = 1
+    #find the overlaps
+    overlap = meta["lines_per_burst"].+meta["burst_meta"]["first_line_mosaic"][1:end-1] .- meta["burst_meta"]["first_line_mosaic"][2:end]
+    d_ovelap_m = floor.(Int,overlap .*0.5)
+    d_ovelap_p = overlap .- d_ovelap_m
 
-# Check if the first burst have enough line to be included
-lines_in_first_burst = 1 + start_burst* meta["lines_per_burst"]-(view_data[1].start)
-view_start_line = meta["burst_meta"]["first_line_mosaic"][start_burst] +(meta["lines_per_burst"]- lines_in_first_burst)
-if lines_in_first_burst <= d_ovelap_m[start_burst]
-    # If not jump to next burst
-    start_burst += 1
-    # update valuse
-    start_line = lines_in_first_burst +1
-    view_start_line = meta["burst_meta"]["first_line_mosaic"][start_burst]
+    # Initialise start line
+    start_line = 1
+
+    # Check if the first burst have enough line to be included
+    lines_in_first_burst = 1 + start_burst* meta["lines_per_burst"]-(view_data[1].start)
+    view_start_line = meta["burst_meta"]["first_line_mosaic"][start_burst] +(meta["lines_per_burst"]- lines_in_first_burst)
+    if lines_in_first_burst <= d_ovelap_m[start_burst]
+        # If not jump to next burst
+        start_burst += 1
+        # update valuse
+        start_line = lines_in_first_burst +1
+        view_start_line = meta["burst_meta"]["first_line_mosaic"][start_burst]
+    end
+
+    # Check if the end burst have enough line to be included
+    lines_in_end_burst = view_data[1].stop - (end_burst-1)* meta["lines_per_burst"]
+
+    if end_burst == 1
+        println("To Be made")
+        @assert 1 == 0
+    end
+
+    if lines_in_end_burst <= d_ovelap_p[end_burst-1]
+        # if not skip the end burst
+        end_burst -= 1
+        lines_in_end_burst =  meta["lines_per_burst"]
+    end
+    # make end line
+    view_end_line = meta["burst_meta"]["first_line_mosaic"][end_burst]+lines_in_end_burst -1
+
+    # Check for single burst
+    if end_burst == start_burst
+        println("To Be made")
+        @assert 1 == 0
+    end
+
+    # Make the mosaic view
+    mosaic_view = (view_start_line:view_end_line,view_data[2])
+    
+    # initialize array for results
+    mosaic_data = Array{eltype(data)}(undef,length.(mosaic_view)...)
+
+    # Find initilize mosaic with the first burst exept a bit of the end part
+    end_line = meta["lines_per_burst"]*start_burst-d_ovelap_m[start_burst]-view_data[1].start
+    mosaic_data[1:(end_line-start_line)+1,:] .= data[start_line:end_line,:];
+
+    # update
+    line_temp = (end_line-start_line)+2
+
+    # loop throuth the middle burst and cut out the section needed
+    for k in (start_burst+1):(end_burst-1)
+        start_line = 1+d_ovelap_p[k-1]+(k-1)*meta["lines_per_burst"]-view_data[1].start
+        end_line = meta["lines_per_burst"]*k-d_ovelap_m[k]-view_data[1].start
+        # add the result to mosaic
+        mosaic_data[line_temp:line_temp + (end_line-start_line),:] .=  data[start_line:end_line,:]
+        line_temp  = line_temp +(end_line-start_line)+1
+    end
+
+    # handle the last burst
+    start_line = 1+d_ovelap_p[end_burst-1]+(end_burst-1)*meta["lines_per_burst"]-view_data[1].start
+    end_line = (end_burst-1)*meta["lines_per_burst"]+lines_in_end_burst-(view_data[1].start-1)
+    mosaic_data[line_temp:line_temp+(end_line-start_line),:] .=  data[start_line:end_line,:];
+
+    return mosaic_data,mosaic_view
 end
-
-# Check if the end burst have enough line to be included
-lines_in_end_burst = view_data[1].stop - (end_burst-1)* meta["lines_per_burst"]
-
-if end_burst == 1
-    println("To Be made")
-end
-
-if lines_in_end_burst <= d_ovelap_p[end_burst-1]
-    # if not skip the end burst
-    end_burst -= 1
-    lines_in_end_burst =  meta["lines_per_burst"]
-end
-# make end line
-view_end_line = meta["burst_meta"]["first_line_mosaic"][end_burst]+lines_in_end_burst -1
-
-# Check for single burst
-if end_burst == start_burst
-    println("To Be made")
-end
-
-# Make the mosaic view
-mosaic_view = (view_start_line:view_end_line,view_data[2])
-
-# initialize array for results
-mosaic_data = Array{eltype(data)}(undef,length.(mosaic_view)...)
-
-# Find initilize mosaic with the first burst exept a bit of the end part
-end_line = meta["lines_per_burst"]*start_burst-d_ovelap_m[start_burst]-view_data[1].start
-mosaic_data[1:(end_line-start_line)+1,:] .= data[start_line:end_line,:];
-
-# update
-line_temp = (end_line-start_line)+2
-
-# loop throuth the middle burst and cut out the section needed
-for k in (start_burst+1):(end_burst-1)
-    start_line = 1+d_ovelap_p[k-1]+(k-1)*meta["lines_per_burst"]-view_data[1].start
-    end_line = meta["lines_per_burst"]*k-d_ovelap_m[k]-view_data[1].start
-    # add the result to mosaic
-    mosaic_data[line_temp:line_temp + (end_line-start_line),:] .=  data[start_line:end_line,:]
-    line_temp  = line_temp +(end_line-start_line)+1
-end
-
-# handle the last burst
-start_line = 1+d_ovelap_p[end_burst-1]+(end_burst-1)*meta["lines_per_burst"]-view_data[1].start
-end_line = (end_burst-1)*meta["lines_per_burst"]+lines_in_end_burst-(view_data[1].start-1)
-mosaic_data[line_temp:line_temp+(end_line-start_line),:] .=  data[start_line:end_line,:];
-
-return mosaic_data,mosaic_view
-end
-
-
 
 
 """
     get_burst_corners(burst_number::Int, meta::Dict)
 
-Computes the corner indices of a burst.
+    Computes the corner indices of a burst.
 
-# Arguments
-- `burst_number::Int`: The number of the burst of interest.
-- `meta::Dict`:  Meta information from the Sentinel-1 SLC image
+    # Arguments
+    - `burst_number::Int`: The number of the burst of interest.
+    - `meta::Dict`:  Meta information from the Sentinel-1 SLC image
 
-# Output
+    # Output
 
-# Examples:
-```jldoctest
-julia> meta = Load.slc_meta(path_meta_1);
-julia> burst_number = 1
-julia> first_index_row, last_index_row, first_index_col, last_index_col = get_burst_corners(burst_number, meta)
-julia> print(first_index_row, ", ",last_index_row, ", ",first_index_col, ", ",last_index_col)
-32, 1495, 946, 24512
-```
+    # Examples:
+    ```jldoctest
+    julia> meta = Load.slc_meta(path_meta_1);
+    julia> burst_number = 1
+    julia> first_index_row, last_index_row, first_index_col, last_index_col = get_burst_corners(burst_number, meta)
+    julia> print(first_index_row, ", ",last_index_row, ", ",first_index_col, ", ",last_index_col)
+    32, 1495, 946, 24512
+    ```
 """
 function get_burst_corners(burst_number, meta)
     first_index_row = findfirst(x->x!=-1, meta["burst_meta"]["fist_valid_pixel"][burst_number])
@@ -194,30 +195,30 @@ end
 """
     phase_ramp(linesArray{Int,1}, samples::Array{Int,1}, burst_number::Int, meta::Dict, precise_orbit:Dict)
 
-Computes the phase ramp (phi) for the given burst number for input lines and samples.
+    Computes the phase ramp (phi) for the given burst number for input lines and samples.
 
-# Arguments
-- `lines::Array{Int,1}`: The (Nx1)-lines of interest. Can also be a view i.e. UnitRange{Int64}
-- `samples::Array{Int,1}`: The (Mx1)-samples of interest. Can also be a view i.e. UnitRange{Int64}
-- `burst_number::Int`: The number of the burst of interest.
-- `meta::Dict`:  Meta information from the Sentinel-1 SLC image
-- `v_mid:Dict`: Satellite speed at mid burst time
+    # Arguments
+    - `lines::Array{Int,1}`: The (Nx1)-lines of interest. Can also be a view i.e. UnitRange{Int64}
+    - `samples::Array{Int,1}`: The (Mx1)-samples of interest. Can also be a view i.e. UnitRange{Int64}
+    - `burst_number::Int`: The number of the burst of interest.
+    - `meta::Dict`:  Meta information from the Sentinel-1 SLC image
+    - `v_mid:Dict`: Satellite speed at mid burst time
 
-# Output
-- ramp::Array{Float64,1}: Array with phase ramp for chosen lines and samples in list format
+    # Output
+    - ramp::Array{Float64,1}: Array with phase ramp for chosen lines and samples in list format
 
-# Examples:
-```jldoctest
-julia> meta = Load.slc_meta(path_meta_1);
-julia> precise_orbit = Load.precise_orbit(path_pod_1, meta["t_0"]);
-julia> burst_number = 1
-julia> ramp = phase_ramp(750:900, 1037:2000, burst_number, meta, precise_orbit);
-1525×23567 Array{Float64,1}:
- 6.17566e8  6.17565e8  6.17564e8  …  5.89003e8  5.89001e8  5.89e8
-```
+    # Examples:
+    ```jldoctest
+    julia> meta = Load.slc_meta(path_meta_1);
+    julia> precise_orbit = Load.precise_orbit(path_pod_1, meta["t_0"]);
+    julia> burst_number = 1
+    julia> ramp = phase_ramp(750:900, 1037:2000, burst_number, meta, precise_orbit);
+    1525×23567 Array{Float64,1}:
+     6.17566e8  6.17565e8  6.17564e8  …  5.89003e8  5.89001e8  5.89e8
+    ```
 
-#Notes
-Equation reference: Miranda, 2017: "Definition of the TOPS SLC deramping function for products generated by the S-1 IPF"
+    #Notes
+    Equation reference: Miranda, 2017: "Definition of the TOPS SLC deramping function for products generated by the S-1 IPF"
 """
 function phase_ramp(lines, samples, burst_number, meta, v_mid)
     # fish out constants and parameters
@@ -358,6 +359,72 @@ end
 
 
 """
+    get_mosaic_view(meta,view_data)
+
+    Gives the view in mosaic geometry (same as sali).
+    Mosaic geometry is when the lines are counted from the first
+    burst and with equal spacing. It correospond to collapsing all overlapping
+    lines. Sample range is the same
+"""
+function get_mosaic_view(meta,view_data)
+    # Find the burst in the image
+    start_burst = ceil(Int,(view_data[1].start)/meta["lines_per_burst"])
+    end_burst = ceil(Int,(view_data[1].stop-1)/meta["lines_per_burst"])
+
+    #find the overlaps
+    overlap = meta["lines_per_burst"].+meta["burst_meta"]["first_line_mosaic"][1:end-1] .- meta["burst_meta"]["first_line_mosaic"][2:end]
+    d_ovelap_m = floor.(Int,overlap .*0.5)
+    d_ovelap_p = overlap .- d_ovelap_m
+
+    # Initialise start line
+    start_line = 1
+
+    # Check if the first burst have enough line to be included
+    lines_in_first_burst = 1 + start_burst* meta["lines_per_burst"]-(view_data[1].start)
+    view_start_line = meta["burst_meta"]["first_line_mosaic"][start_burst] +(meta["lines_per_burst"]- lines_in_first_burst)
+    if lines_in_first_burst <= d_ovelap_m[start_burst]
+        # If not jump to next burst
+        start_burst += 1
+        # update valuse
+        start_line = lines_in_first_burst +1
+        view_start_line = meta["burst_meta"]["first_line_mosaic"][start_burst]
+    end
+
+    # Check if the end burst have enough line to be included
+    lines_in_end_burst = view_data[1].stop - (end_burst-1)* meta["lines_per_burst"]
+
+    if end_burst == 1
+        println("To Be made")
+        @assert 1 == 0
+    end
+
+    if lines_in_end_burst <= d_ovelap_p[end_burst-1]
+        # if not skip the end burst
+        end_burst -= 1
+        lines_in_end_burst =  meta["lines_per_burst"]
+    end
+    # make end line
+    view_end_line = meta["burst_meta"]["first_line_mosaic"][end_burst]+lines_in_end_burst -1
+
+    # Check for single burst
+    if end_burst == start_burst
+        println("To Be made")
+        @assert 1 == 0
+    end
+
+    # Make the mosaic view
+    mosaic_view = (view_start_line:view_end_line,view_data[2])
+
+
+    return mosaic_view
+end
+function get_mosaic_view(img::SlcRaw)
+    get_mosaic_view(img.meta,img.view)
+end
+
+
+
+"""
     _raw_coords(s1_ann,line,sample)
 
     Gives approximated coordinates for line,sample
@@ -392,51 +459,17 @@ function footprint(s1_ann,view)
     # Get corners
     line = [view[1].start,view[1].stop,view[1].stop,view[1].start]
     sample = [view[2].start,view[2].start,view[2].stop,view[2].stop]
-        return _raw_coords(s1_ann,line,sample)
+    lat, lon = _raw_coords(s1_ann,line,sample)
+    @assert sum(isnan.(lat)) == 0
+    @assert sum(isnan.(lon)) == 0
+    return lat, lon
 end
 function footprint(img::SlcRaw)
     return footprint(img.meta,img.view)
 end
 
 
-"""
-    mosaic_view(s1_ann,view)
 
-    Gives the view in mosaic geometry (same as sali).
-    Mosaic geometry is when the lines are counted from the first
-    burst and with equal spacing. It correospond to collapsing all overlapping
-    lines. Sample range is the same
-"""
-function mosaic_view(s1_ann,view)
-    # get info
-    start_line = view[1].start
-    end_line = view[1].stop
-    lines_per_burst = s1_ann["lines_per_burst"]
-    mosaic_lines = s1_ann["burst_meta"]["first_line_mosaic"]
-
-    # Find start line
-    burst = Int(floor((start_line-1)/lines_per_burst))+1  # minus one because of 0 vs 1 index
-    line_burst = start_line - (burst-1)*lines_per_burst
-    mosaic_start = mosaic_lines[burst]+(line_burst-1)
-    # Check the burst after has a line there is before the first burst
-    if end_line > (burst*lines_per_burst)
-        mosaic_start = minimum([mosaic_start,mosaic_lines[burst+1]])
-    end
-
-    # find end line
-    burst = Int(floor((end_line-1)/lines_per_burst))+1  # minus one because of 0 vs 1 index
-    line_burst = end_line - (burst-1)*lines_per_burst
-    mosaic_stop = mosaic_lines[burst]+(line_burst-1)
-    # Check the burst before has a line there is after the last burst
-    if start_line < ((burst-1)*lines_per_burst)
-        mosaic_stop = maximum([mosaic_stop,mosaic_lines[burst-1]+lines_per_burst-1])
-    end
-
-    return [mosaic_start:mosaic_stop,view[2]]
-end
-function mosaic_view(img::SlcRaw)
-    mosaic_view(img.meta,img.view)
-end
 
 
 """
@@ -493,7 +526,7 @@ end
     - `calibration_dict`: calibration data as returned by Load.slc_calibration()
     - kind::String : Must match a key in calibration_dict
 
-- `lut::Dict`:  Look up table
+    - `lut::Dict`:  Look up table
     # Output
     - calibrated_data::Array{Complex{Float64},2}: mosaiced data
 """

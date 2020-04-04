@@ -41,7 +41,7 @@ scipy_interp = pyimport("scipy.interpolate");
 """
 function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem;stride=(2,8))
     # look_up_table
-    mosaic_view = SlcUtil.mosaic_view(meta[1],master_view)
+    mosaic_view = SlcUtil.get_mosaic_view(meta[1],master_view)
     lut = look_up_table(mosaic_view,meta,precise_orbit,dem,stride=stride)
     coreg_slave, flat_inferogram = coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,lut)
 
@@ -58,7 +58,7 @@ function coregister_slave(master_view,slave_data_path,meta,precise_orbit,dem,lut
     v_mid = mid_burst_speed(precise_orbit[2], meta[2]);
 
     # get master line and sample
-    mosaic_view = SlcUtil.mosaic_view(meta[1],master_view)
+    mosaic_view = SlcUtil.get_mosaic_view(meta[1],master_view)
     master_line, master_sample = Misc.flatten(mosaic_view...)
 
     # interpolate slave line and sample
@@ -241,10 +241,15 @@ function look_up_table(master_view,meta,precise_orbit,dem;stride=(1,1))
        sample = collect(master_view[2])
    else
        # Compute the grid with strides.
-       line = collect(master_view[1].start:stride[1]:master_view[1].stop)
-       line[end] = master_view[1].stop
-       sample = collect(master_view[2].start:stride[2]:master_view[2].stop)
-       sample[end] = master_view[2].stop
+        
+        # add pad to ensure whole view is covered
+       delta = (master_view[1].stop-master_view[1].start) % stride[1]
+       pad = delta ==0 ? 0 : stride[1]-delta
+        line = collect(master_view[1].start:stride[1]:(master_view[1].stop + pad))
+        
+       delta = (master_view[2].stop-master_view[2].start) % stride[2]
+       pad = delta ==0 ? 0 : stride[2]-delta
+       sample = collect(master_view[2].start:stride[2]:master_view[2].stop + pad)
    end
 
     # Get master line and sample

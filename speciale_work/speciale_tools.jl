@@ -16,12 +16,29 @@ ndimage = PyCall.pyimport("scipy.ndimage")
 skimage_morph = PyCall.pyimport("skimage.morphology");
 
 
+zip_folder(dir_path) = run(`zip -q -j -r $(dir_path*(".zip")) $dir_path`)# zip files
+
 flat(band,test_area) = reshape(band[test_area...],:)
 
 LsqFit.@. bimodal_gauss_model(x, p) = p[1]*exp(-0.5*((x-p[3])/p[5])^2) +  p[2]*exp(-0.5*((x-p[4])/p[6])^2)
 
 LsqFit.@. gauss_model(x, p) = p[1]*exp(-0.5*((x-p[2])/p[3])^2) 
 
+
+function get_edges(mask,line_width=2)
+    
+    h_kernel = [1 1 1 ; 0 0 0 ; -1 -1 -1]
+    v_kernel = [1 0 -1 ; 1 0 -1 ; 1 0 -1]
+    
+    res = Misc.fastconv(convert.(Int64,mask),h_kernel).^2 .+ Misc.fastconv(convert.(Int64,mask),v_kernel).^2;
+    res =  res[2:end-1, 2:end-1];
+    res = res.>0
+    
+    for i in 1:line_width
+        res = skimage_morph.binary_dilation(res)
+    end
+    return res
+end
 
 function sse_water_fit(flood_band,change_band,seed_mask,bm_mask, p_water,w_sum,edges,y, rg_thresholds)
     #use region growinf
