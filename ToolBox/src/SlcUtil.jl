@@ -455,13 +455,15 @@ end
     Theses coordinates can easily be 100 pixels off
     !!!
 """
-function footprint(s1_ann,view)
+function footprint(s1_ann,view;check_nan=true)
     # Get corners
     line = [view[1].start,view[1].stop,view[1].stop,view[1].start]
     sample = [view[2].start,view[2].start,view[2].stop,view[2].stop]
     lat, lon = _raw_coords(s1_ann,line,sample)
-    @assert sum(isnan.(lat)) == 0
-    @assert sum(isnan.(lon)) == 0
+    if check_nan
+        @assert sum(isnan.(lat)) == 0
+        @assert sum(isnan.(lon)) == 0
+    end
     return lat, lon
 end
 function footprint(img::SlcRaw)
