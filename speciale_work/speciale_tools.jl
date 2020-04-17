@@ -321,7 +321,13 @@ end
 
 
 function pretty_img(bands,min,max,k=1/1.4)
-    pre = db_scale_img((bands[2] .+bands[3])./2,min,max) 
+    
+    pre = 0
+    if length(bands) ==3
+        pre = db_scale_img((bands[2] .+bands[3])./2,min,max) 
+    elseif length(bands) ==2
+        pre = db_scale_img(bands[2],min,max) 
+    end
     co = db_scale_img(bands[1],min,max) 
     co = co.^k
     pre = pre.^k
