@@ -7,6 +7,59 @@ import LsqFit
 import Statistics
 import FileIO
 import Optim
+import Dates
+
+
+min_vv = -19
+max_vv = 4
+
+min_vh = -26
+max_vh = -3
+
+
+
+function _sort_jld_files(file_list,date_position )
+    name_list = [split(elem,".")[1] for elem in file_list]
+    date_string = [split(elem,"_")[date_position] for elem in name_list]
+    date = [Dates.Date(parse.(Int, [elem[1:4], elem[5:6], elem[7:8]])...) for elem in date_string]
+    return file_list[sortperm(date)][end:-1:1]
+end
+
+function _sort_prossed_files(data_folder,sort_master = true)
+    files = readdir(data_folder)
+
+
+    files = [elem for elem in files if length(elem)>1]
+    files = [elem for elem in files if length(split(elem,"_"))>3]
+
+    coherence_idx = [split(elem,"_")[2]=="coh" for elem in files]
+    coherence_files = files[coherence_idx ]  
+    if sort_master 
+        coherence_files = _sort_jld_files(coherence_files,6)
+    else
+        _sort_jld_files(coherence_files,8)
+    end
+
+    coherence_VV_files = [ elem for elem in coherence_files if split(elem,"_")[4]=="VV"]
+    coherence_VH_files = [ elem for elem in coherence_files if split(elem,"_")[4]=="VH"]                    
+
+    VV_idx = [(split(elem,"_")[1]=="sigma") & (split(elem,"_")[3]=="VV") for elem in files];
+    VV_files = files[VV_idx] 
+    VV_files = _sort_jld_files(VV_files,4)
+
+    VH_idx = [(split(elem,"_")[1]=="sigma") & (split(elem,"_")[3]=="VH") for elem in files];
+    VH_files= files[VH_idx];                 
+    VH_files = _sort_jld_files(VH_files,4)
+                                                
+    return VV_files,VH_files,coherence_VV_files,coherence_VH_files 
+end
+                                                
+function _load_jld(file_list,data_folder)
+    path_names = [joinpath(data_folder,elem) for elem in file_list]
+    return [JLD.load(elem,"data") for elem in path_names]
+end
+
+
 
 shapely_geometry = PyCall.pyimport("shapely.geometry")
 skimage_meas = PyCall.pyimport("skimage.measure");
