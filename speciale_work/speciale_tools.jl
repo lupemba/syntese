@@ -279,7 +279,7 @@ function No_HSBA_floodmask(flood_band,ref_band,thresholds)
 end
 
 
-function region_growing(seed_mask,region_grow_mask ; max_inter=1000, tol=0)
+function region_growing(seed_mask,region_grow_mask ; max_inter=100, tol=0)
     res = seed_mask
     steps = 1
     diff = tol +5
