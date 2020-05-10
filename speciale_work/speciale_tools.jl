@@ -10,6 +10,94 @@ import Optim
 import Dates
 
 
+
+
+function grad_eval(f,x,delta)
+    dfdx = similar(x)
+    f_0 = f(x...)
+    for i in 1:length(x)
+        xp = copy(x)
+        xb = copy(x)
+        xp[i] += delta[i]
+        xb[i] -= delta[i]
+        dfdx[i] = (f(xp...)-f(xb...))/(2*delta[i])
+    end
+    return dfdx, f_0
+end
+
+
+function grad_decent(f, x_0 ; no_step_max =3, iter_max = 50,df_tol = 10^-14 ,dfdx_tol = 10^-16, 
+        step_size = 10.0 .^(2:6),no_step_count = -2,delta = 10^-4,debug=false)
+
+    x_i = x_0
+    iter_count = 0
+    n_steps = 0
+    delta = ones(length(x_i))*delta
+    
+    #test if better or the first
+    while (no_step_count<no_step_max)
+        iter_count += 1;
+        dfdx, f_i =  grad_eval(f,x_i,delta)
+        
+        if debug
+            println("")
+            println("Iterration : $iter_count")
+            println("x_i: $x_i, f_i: $f_i")
+             println("dfdx: $dfdx")
+        end
+        
+        
+        if sum(abs.(dfdx)) > dfdx_tol
+            x_old = x_i
+            
+            #check different steps sizes and choo the best
+            f_steps = [f( (x_i .- dfdx.*elem)...) for elem in step_size]
+            min_idx = argmin(f_steps)
+            
+            # Chec decrease in loose function
+            df = f_i - f_steps[min_idx];
+            
+            if df < df_tol
+                #decreasing  delta becuse no imporvment found in the direction of the gradiant
+                delta .*= 0.1
+                no_step_count += 1    
+                if debug
+                    println("No change, Decrease delta, no_step: $no_step_count")
+                end
+            else
+                # update x_i with optima step and reset no_step_count
+                x_i = x_i.- dfdx.* step_size[min_idx]
+                no_step_count = minimum([no_step_count,0])
+                 n_steps +=1
+                if debug
+                    println("Step x, step_idx:$min_idx,  no_step: $no_step_count")
+                end
+            end
+        end
+        
+        # increase delta
+        delta[dfdx .< dfdx_tol] *= 10
+       
+
+        if (iter_count > iter_max)
+            println("MAX NUMBER OF ITERATIONS REACHED")
+            break
+        end
+
+    end
+    
+    dx = x_i .- x_0
+    
+    if transpose(dx)*dx < 10^-5
+        println("WARNING no step taken")
+    end
+
+    return x_i, n_steps
+
+end
+
+
+
 min_vv = -19
 max_vv = 4
 
@@ -318,7 +406,7 @@ function fit_bimodal_gauss(data,n_bins,maxIter=1000)
     p0[2] = w[findfirst(y.>p0[4])];
     
     # Fit function
-    p_fit = LsqFit.curve_fit(bimodal_gauss_model, y, w, p0; autodiff=:forwarddiff,maxIter=1000).param
+    p_fit = LsqFit.curve_fit(bimodal_gauss_model, y, w, p0; autodiff=:forwarddiff,maxIter=maxIter).param
     
     return p_fit, y, w,edges,w_sum
 
