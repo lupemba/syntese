@@ -199,6 +199,34 @@ function sse_water_fit(flood_band,change_band,seed_mask,bm_mask, p_water,w_sum,e
     return SSE
 end
 
+
+function sse_water_fit2(flood_band,change_band,ref_band,y_seed,bm_mask, p_water,w_sum,edges,y, rg_thresholds)
+    #use region growinf
+    
+    rg_mask = (flood_band .<rg_thresholds[1]) .& (change_band.<rg_thresholds[2])
+    rg_flood, steps = region_growing(flood_band .< y_seed,rg_mask);
+    
+    
+    rg_mask_ref = (ref_band .<rg_thresholds[1])
+    rg_ref, steps = region_growing(ref_band .<y_seed,rg_mask_ref);
+    
+    # Remove flase positives and permant water.
+    rg_mask= rg_flood .& (rg_ref .!=true);
+    
+    # select the water pixelss in the selected tiles
+    data = reshape(flood_band,:)[reshape(rg_mask.&bm_mask,:)];
+    
+    # Compare histogram with the emepircal in p_water
+    h = StatsBase.fit(StatsBase.Histogram, data,edges)
+    w_sel = h.weights./w_sum;
+    w_water_est = gauss_model(y,p_water)
+    
+    # return sum of squred errors
+    SSE = (w_sel .- w_water_est)'*(w_sel .- w_water_est)
+    return SSE
+end
+
+
 """
 find_y_seed(p_fit,y,min_ratio = 0.99)
 
@@ -281,6 +309,7 @@ end
 
 function region_growing(seed_mask,region_grow_mask ; max_inter=100, tol=0)
     res = seed_mask
+    region_grow_mask = region_grow_mask .| seed_mask
     steps = 1
     diff = tol +5
     while diff> tol
