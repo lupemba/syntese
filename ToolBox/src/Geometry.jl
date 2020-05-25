@@ -241,12 +241,12 @@ function look_up_table(master_view,meta,precise_orbit,dem;stride=(1,1))
        sample = collect(master_view[2])
    else
        # Compute the grid with strides.
-        
+
         # add pad to ensure whole view is covered
        delta = (master_view[1].stop-master_view[1].start) % stride[1]
        pad = delta ==0 ? 0 : stride[1]-delta
         line = collect(master_view[1].start:stride[1]:(master_view[1].stop + pad))
-        
+
        delta = (master_view[2].stop-master_view[2].start) % stride[2]
        pad = delta ==0 ? 0 : stride[2]-delta
        sample = collect(master_view[2].start:stride[2]:master_view[2].stop + pad)
@@ -395,14 +395,13 @@ end
     - `state_vectors_mean::Array(6)`: mean of state_vectors
     - `state_vectors_std::Array(6)`: standard deviation of state_vectors 
 """
-function satellite_trajectory(state_vectors,time_state_vectors, t_start, t_stop; poly_degree=4, max_time_margin=240.)
+function satellite_trajectory(state_vectors,time_state_vectors, t_start, t_stop; poly_degree=4, max_time_margin=80.)
     dt = t_stop - t_start;
     t_mid = t_start + dt / 2
     t_step = time_state_vectors[2]-time_state_vectors[1]
-    max_time_margin = max(max_time_margin, (poly_degree + 2) / 2 * t_step)
+    max_time_margin = min(max_time_margin, (poly_degree + 2) / 2 * t_step)
 
-
-    nearby_state_vector_idx = abs.(time_state_vectors .- t_mid) .<= dt/2 + max_time_margin
+    nearby_state_vector_idx = findall(abs.(time_state_vectors .- t_mid) .<= dt/2 + max_time_margin) .+ 1
 
     # Check if enough point are selected
     if sum(nearby_state_vector_idx) < poly_degree + 1
