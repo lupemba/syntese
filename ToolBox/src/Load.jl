@@ -570,15 +570,15 @@ function unzip(zip_files,folder,taget_folder,remove_zip=false)
     if !isdir(taget_folder)
         mkpath(taget_folder)
     end
-    
+
     # unzip all files
     [ run(`unzip $(joinpath(folder,elem)) -d $taget_folder`) for elem in zip_files]
-    
+
     # removes zip files
     if remove_zip
         [ run(`rm $(joinpath(folder,elem))`) for elem in zip_files]
     end
-    
+
 end
 
 
