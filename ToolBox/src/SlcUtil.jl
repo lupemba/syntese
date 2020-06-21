@@ -515,6 +515,9 @@ end
 
 
 
+
+########### Function made by Simon Kok Lupemba under his thesis ###############
+
 """
     calibrate_slave_data(data, view,lut, calibration_dict , kind = "sigma")
 

@@ -327,6 +327,9 @@ function dem(path, lat_lon_window; nan_fill= NaN, padding=[0,0],nan_value =-3276
     return lat, lon, dem_data
 end
 
+
+
+########### Function made by Simon Kok Lupemba under his thesis ###############
 """
     slc_calibration(path,t_0)
 
