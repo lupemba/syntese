@@ -7,6 +7,8 @@ import LsqFit
 import Statistics
 import FileIO
 import Optim
+import Distributions
+import LinearAlgebra
 using Dates
 
 # constant for image visualisations 
@@ -15,6 +17,84 @@ max_vv = 4
 
 min_vh = -26
 max_vh = -3
+
+
+
+function loss_rg_fit(VV,VH, seed_mask, rg_mask_change,target_mu,target_sigma, distance_list, d)
+
+    rg_mask_int = ((VV .< target_mu[1]) .& (VH .< target_mu[2])) .| (distance_list .< d)
+    rg_mask = rg_mask_change .& rg_mask_int
+    flood_mask,steps = region_growing(seed_mask,rg_mask_int .& rg_mask_change);
+    loss = loss_2d_gauss(vec(VV[flood_mask]),vec(VH[flood_mask]),target_mu,target_sigma;n_levels=5)
+    return loss
+end
+
+function loss_2d_gauss(VV,VH,target_mu,target_sigma;n_levels=5, max_q = 1)
+    freq = freq_2d_gauss(VV,VH,target_mu,target_sigma;n_levels=n_levels, max_q =max_q)
+    ture_freq = max_q/(n_levels*4)
+    loss = sum((freq .- ture_freq).^2)
+    return loss
+end
+
+
+function freq_2d_gauss(VV,VH,target_mu,target_sigma;n_levels=5,max_q = 1)
+    
+    N = length(VV)
+    distri = Distributions.Chisq(2)
+    chi_limits = Distributions.quantile.(distri, collect(range(0,length=n_levels+1,stop=max_q))[2:end])
+    
+    line1_mask, line2_mask = get_pca_mask(VV,VH,target_mu,target_sigma)
+    malhob = get_malhob(VV,VH,target_mu,target_sigma)
+    
+    frequency = zeros(Float64,(4,n_levels))
+    
+    frequency[1,:] .= count_chi_limit(malhob[   line1_mask .&   line2_mask],chi_limits)./N
+    frequency[2,:] .= count_chi_limit(malhob[ .!line1_mask .&   line2_mask],chi_limits)./N
+    frequency[3,:] .= count_chi_limit(malhob[ .!line1_mask .& .!line2_mask],chi_limits)./N
+    frequency[4,:] .= count_chi_limit(malhob[   line1_mask .& .!line2_mask],chi_limits)./N
+    
+    return frequency
+end
+
+function get_pca_mask(VV,VH,target_mu,target_sigma)
+    pc = LinearAlgebra.eigvecs(target_sigma)
+    
+    a1 = pc[1,1] /pc[2,1]
+    b1 = target_mu[2] - target_mu[1] * a1
+    line1_mask = VH .>  (VV.* a1 .+ b1) ;
+    
+    a2 = pc[1,2] /pc[2,2]
+    b2 = target_mu[2] - target_mu[1] * a2
+    line2_mask = VH .>  (VV.* a2 .+ b2) ;
+    
+    return line1_mask, line2_mask
+end
+
+
+function get_malhob(VV,VH,mu,sigma)
+    malhob = cat(vec(VV) .- mu[1],vec(VH).- mu[2],dims=2)
+    
+    inv_sigma = sigma^-1;
+    malhob = [transpose(malhob[i,:])*inv_sigma*(malhob[i,:]) for i in 1:length(VV)];
+    malhob = reshape(malhob,size(VV));
+    return malhob
+end
+
+
+function count_chi_limit(malhob,chi_limits)
+    counts = zeros(Int64, length(chi_limits))
+    
+    counts[1] = sum(malhob .< chi_limits[1])
+    
+    for i in 2:(length(chi_limits))
+        counts[i] = sum(chi_limits[i-1] .< malhob .< chi_limits[i])
+    end
+    
+    return counts
+end
+
+
+
 
 ################
 function moasic2normal_view(moasic_view,meta)
